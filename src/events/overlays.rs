@@ -3,7 +3,7 @@
 
 //! Input for the modal overlays: command palette, sort picker, help, artist picker.
 
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::*;
 use crate::app::{App, SortPalette, Tab};
@@ -129,28 +129,58 @@ pub(super) fn handle_sort_palette_input(app: &mut App, key: KeyEvent) {
 pub(super) fn handle_help_input(app: &mut App, key: KeyEvent) {
     use crate::app::KeybindGroup;
 
-    let max_scroll = {
-        let total_lines = KeybindGroup::total_help_lines() as i16;
-        let visible_lines = 22i16; // Modal inner height (24 - 2 for borders) in render_help_modal
-        (total_lines - visible_lines).max(0) as u16
-    };
+    const HELP_QUERY_MAX: usize = 48;
+
+    let content_h = app.help_content_h.get();
+    let max_scroll =
+        |query: &str| KeybindGroup::total_help_lines_filtered(query).saturating_sub(content_h);
 
     match key.code {
         KeyCode::Esc => {
-            app.help_active = false;
+            if app.help_query.is_empty() {
+                app.help_active = false;
+            }
+            app.help_query.clear();
             app.help_scroll = 0;
         }
         KeyCode::Up => {
             app.help_scroll = app.help_scroll.saturating_sub(1);
         }
         KeyCode::Down => {
-            app.help_scroll = (app.help_scroll + 1).min(max_scroll);
+            let max = max_scroll(&app.help_query);
+            app.help_scroll = (app.help_scroll + 1).min(max);
         }
         KeyCode::PageUp => {
             app.help_scroll = app.help_scroll.saturating_sub(10);
         }
         KeyCode::PageDown => {
-            app.help_scroll = (app.help_scroll + 10).min(max_scroll);
+            let max = max_scroll(&app.help_query);
+            app.help_scroll = (app.help_scroll + 10).min(max);
+        }
+        KeyCode::Backspace => {
+            if app.help_query.pop().is_some() {
+                app.help_scroll = 0;
+            }
+        }
+        KeyCode::Char(c) => {
+            if key.modifiers.contains(KeyModifiers::CONTROL) && (c == 'u' || c == 'U') {
+                if !app.help_query.is_empty() {
+                    app.help_query.clear();
+                    app.help_scroll = 0;
+                }
+            } else if !key.modifiers.contains(KeyModifiers::CONTROL)
+                && !key.modifiers.contains(KeyModifiers::ALT)
+            {
+                // Refusing a leading space keeps the query never-whitespace-only,
+                // which is what lets everything else test it with `is_empty`:
+                // the filter trims, so " " would match everything while the box
+                // looked filled and Esc read as clear-not-close.
+                let leading_space = app.help_query.is_empty() && c.is_whitespace();
+                if !leading_space && app.help_query.chars().count() < HELP_QUERY_MAX {
+                    app.help_query.push(c);
+                    app.help_scroll = 0;
+                }
+            }
         }
         _ => {}
     }

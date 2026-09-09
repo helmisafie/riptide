@@ -52,6 +52,7 @@ pub(super) fn handle_global_key(app: &mut App, key: KeyEvent) -> bool {
         KeyCode::Char('?') => {
             app.help_active = true;
             app.help_scroll = 0;
+            app.help_query.clear();
         }
         // `:` for the command line, `/` for finding things within the current
         // view — the vim split. `/` used to open the palette.

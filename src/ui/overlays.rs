@@ -11,7 +11,7 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
 };
 
-use unicode_width::UnicodeWidthStr;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use super::*;
 use crate::app::App;
@@ -205,6 +205,134 @@ pub(super) fn render_artist_selection_modal(f: &mut Frame, app: &App, area: Rect
     }
 }
 
+// ── Help modal ────────────────────────────────────────────────────────────────
+
+/// Case-insensitive substring highlight; ASCII fast path, unicode generic via
+/// per-char `to_lowercase` for expansions (e.g. İ → i+̇).
+fn highlight_spans(text: &str, query: &str, base: Style, hl: Style) -> Vec<Span<'static>> {
+    let q = query.trim();
+    if q.is_empty() {
+        return vec![Span::styled(text.to_owned(), base)];
+    }
+    let q_lower: Vec<char> = q.to_lowercase().chars().collect();
+    if q_lower.is_empty() {
+        return vec![Span::styled(text.to_owned(), base)];
+    }
+
+    if text.is_ascii() && q.is_ascii() {
+        let t_lower = text.to_ascii_lowercase();
+        let q_lc = q.to_ascii_lowercase();
+        let mut spans: Vec<Span> = Vec::new();
+        let mut cursor = 0usize;
+        let mut search_start = 0usize;
+        let mut found = false;
+        while let Some(rel) = t_lower[search_start..].find(&q_lc) {
+            let start = search_start + rel;
+            let end = start + q_lc.len();
+            if cursor < start {
+                spans.push(Span::styled(text[cursor..start].to_owned(), base));
+            }
+            spans.push(Span::styled(text[start..end].to_owned(), hl));
+            cursor = end;
+            search_start = end;
+            found = true;
+            if search_start >= t_lower.len() {
+                break;
+            }
+        }
+        if !found {
+            return vec![Span::styled(text.to_owned(), base)];
+        }
+        if cursor < text.len() {
+            spans.push(Span::styled(text[cursor..].to_owned(), base));
+        }
+        return spans;
+    }
+
+    let t_chars: Vec<char> = text.chars().collect();
+    let mut t_lower: Vec<char> = Vec::new();
+    let mut lower_to_orig: Vec<usize> = Vec::new();
+    for (orig_idx, &c) in t_chars.iter().enumerate() {
+        for lc in c.to_lowercase() {
+            t_lower.push(lc);
+            lower_to_orig.push(orig_idx);
+        }
+    }
+    if q_lower.len() > t_lower.len() {
+        return vec![Span::styled(text.to_owned(), base)];
+    }
+    let mut byte_offsets: Vec<usize> = Vec::with_capacity(t_chars.len() + 1);
+    let mut off = 0usize;
+    for c in &t_chars {
+        byte_offsets.push(off);
+        off += c.len_utf8();
+    }
+    byte_offsets.push(off);
+
+    let mut spans: Vec<Span> = Vec::new();
+    let mut last_orig = 0usize;
+    let mut i = 0usize;
+    let mut found = false;
+    while i + q_lower.len() <= t_lower.len() {
+        if t_lower[i..i + q_lower.len()] == q_lower[..] {
+            let orig_start = lower_to_orig[i];
+            let last_lower = i + q_lower.len() - 1;
+            let orig_end = lower_to_orig[last_lower] + 1;
+            let start_byte = byte_offsets[orig_start];
+            let end_byte = byte_offsets[orig_end];
+            if last_orig < orig_start {
+                spans.push(Span::styled(
+                    text[byte_offsets[last_orig]..start_byte].to_owned(),
+                    base,
+                ));
+            }
+            spans.push(Span::styled(text[start_byte..end_byte].to_owned(), hl));
+            last_orig = orig_end;
+            i += q_lower.len();
+            found = true;
+        } else {
+            i += 1;
+        }
+    }
+    if !found {
+        return vec![Span::styled(text.to_owned(), base)];
+    }
+    if last_orig < t_chars.len() {
+        spans.push(Span::styled(
+            text[byte_offsets[last_orig]..].to_owned(),
+            base,
+        ));
+    }
+    spans
+}
+
+/// Keep the end of `text` in view. A filter box must show the characters just
+/// typed, which is the opposite end from the one `ellipsize` keeps for list rows.
+fn ellipsize_head(text: &str, columns: usize) -> String {
+    if text.width() <= columns {
+        return text.to_owned();
+    }
+    if columns == 0 {
+        return String::new();
+    }
+    if columns == 1 {
+        return "…".to_owned();
+    }
+    let mut tail: Vec<char> = Vec::new();
+    let mut w = 0usize;
+    for c in text.chars().rev() {
+        let cw = UnicodeWidthChar::width(c).unwrap_or(0);
+        if w + cw > columns - 1 {
+            break;
+        }
+        tail.push(c);
+        w += cw;
+    }
+    let mut out = String::from("…");
+    out.extend(tail.into_iter().rev());
+    out
+}
+
 pub(super) fn render_help_modal(f: &mut Frame, app: &App, area: Rect) {
     // Fixed size modal, well clear of the now-playing bar (9 lines at bottom)
     let box_w = 50u16.min(area.width.saturating_sub(4));
@@ -234,57 +362,139 @@ pub(super) fn render_help_modal(f: &mut Frame, app: &App, area: Rect) {
         return;
     }
 
-    // Collect all keybind groups
-    let groups = vec![
-        KeybindGroup::global(),
-        KeybindGroup::navigation(),
-        KeybindGroup::queue(),
-        KeybindGroup::search(),
-        KeybindGroup::command(),
-    ];
+    let query = &app.help_query;
+    let filtered = KeybindGroup::filtered_groups(query);
+    let total_binds = KeybindGroup::total_bind_count();
+    let filtered_binds: usize = filtered.iter().map(|g| g.binds.len()).sum();
+    let hl_style = Style::default()
+        .bg(SELECT_BG)
+        .fg(Color::White)
+        .add_modifier(Modifier::BOLD);
+    let has_search = inner.height >= 3 && inner.width >= 20;
 
-    // Build lines for rendering
-    let mut lines: Vec<Line> = Vec::new();
-    for group in groups {
-        // Group header
-        lines.push(Line::from(Span::styled(
-            group.title,
-            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
-        )));
+    let (content_y, content_h) = if has_search {
+        let cursor = cursor_char(app.tick);
+        let cursor_style = Style::default().fg(Color::White);
+        let placeholder = "type to filter…";
+        let is_empty = query.is_empty();
 
-        // Keybinds
-        for keybind in group.binds {
-            let line = Line::from(vec![
-                Span::styled(
-                    format!("  {:<12}", keybind.key),
-                    Style::default().fg(ACCENT),
-                ),
-                Span::raw(keybind.action),
-            ]);
-            lines.push(line);
+        let count_str = format!(" {}/{} ", filtered_binds, total_binds);
+        let esc_hint = if is_empty {
+            "Esc to close"
+        } else {
+            "Esc to clear"
+        };
+        let right_spans: Vec<Span> = vec![
+            Span::styled(count_str.clone(), Style::default().fg(DIM)),
+            Span::styled(esc_hint.to_owned(), Style::default().fg(DIM)),
+        ];
+
+        // The match count and the Esc hint are what tell the user whether the
+        // filter caught anything, so a long query gives way to them instead of
+        // pushing them off the end of the line.
+        const SEARCH_ICON_W: usize = 2;
+        const CURSOR_W: usize = 1;
+        const MIN_GAP: usize = 1;
+        let right_w = count_str.width() + esc_hint.width() + 1;
+        let text_budget =
+            (inner.width as usize).saturating_sub(SEARCH_ICON_W + CURSOR_W + right_w + MIN_GAP);
+        let (text, text_style) = if is_empty {
+            (
+                ellipsize(placeholder, text_budget as u16),
+                Style::default().fg(DIM),
+            )
+        } else {
+            (
+                ellipsize_head(query, text_budget),
+                Style::default().fg(Color::White),
+            )
+        };
+
+        let left_spans: Vec<Span> = vec![
+            Span::styled(
+                "⌕ ",
+                Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(text.clone(), text_style),
+            Span::styled(cursor.to_owned(), cursor_style),
+        ];
+
+        let left_w = SEARCH_ICON_W + text.width() + CURSOR_W;
+        let mid_w = (inner.width as usize).saturating_sub(left_w + right_w);
+        let mut line_spans = left_spans;
+        if mid_w > 0 {
+            line_spans.push(Span::raw(" ".repeat(mid_w)));
+        } else {
+            line_spans.push(Span::raw(" "));
         }
+        line_spans.extend(right_spans);
 
-        // Space between groups
-        lines.push(Line::from(""));
+        f.render_widget(
+            Paragraph::new(Line::from(line_spans)),
+            Rect::new(inner.x, inner.y, inner.width, 1),
+        );
+
+        f.render_widget(
+            Paragraph::new("─".repeat(inner.width as usize)).style(Style::default().fg(DIM)),
+            Rect::new(inner.x, inner.y + 1, inner.width, 1),
+        );
+
+        (inner.y + 2, inner.height.saturating_sub(2))
+    } else {
+        (inner.y, inner.height)
+    };
+
+    app.help_content_h.set(content_h);
+
+    if content_h == 0 {
+        return;
     }
 
-    // Render with scrolling
-    let start = app.help_scroll as usize;
-    let mut y = inner.y;
+    let mut lines: Vec<Line> = Vec::new();
+    if filtered.is_empty() {
+        lines.push(Line::from(Span::styled(
+            ellipsize(&format!(" no matches for \"{query}\""), inner.width),
+            Style::default().fg(DIM),
+        )));
+    } else {
+        for group in &filtered {
+            let header_base = Style::default().fg(ACCENT).add_modifier(Modifier::BOLD);
+            let header_spans = highlight_spans(group.title, query, header_base, hl_style);
+            lines.push(Line::from(header_spans));
 
-    for line in lines.iter().skip(start) {
-        if y >= inner.y + inner.height {
-            break;
+            for keybind in &group.binds {
+                let key_base = Style::default().fg(ACCENT);
+                let action_base = Style::default().fg(Color::White);
+                let mut spans: Vec<Span> = Vec::new();
+                spans.push(Span::raw("  "));
+                let key_spans = highlight_spans(keybind.key, query, key_base, hl_style);
+                spans.extend(key_spans);
+                let key_w = keybind.key.chars().count();
+                let pad = 12usize.saturating_sub(key_w);
+                if pad > 0 {
+                    spans.push(Span::raw(" ".repeat(pad)));
+                }
+                let action_spans = highlight_spans(keybind.action, query, action_base, hl_style);
+                spans.extend(action_spans);
+                lines.push(Line::from(spans));
+            }
+
+            lines.push(Line::from(""));
         }
+    }
+
+    // Clamp so small terminals reach the bottom without excess blank on large ones.
+    let max_start = lines.len().saturating_sub(content_h as usize);
+    let start = (app.help_scroll as usize).min(max_start);
+
+    for (y, line) in (content_y..content_y + content_h).zip(lines.iter().skip(start)) {
         f.render_widget(
             Paragraph::new(line.clone()),
             Rect::new(inner.x, y, inner.width, 1),
         );
-        y += 1;
     }
 
-    // Render scroll hint
-    if lines.len() as u16 > app.help_scroll + inner.height {
+    if lines.len() > start + content_h as usize {
         let hint = " ↓ more ";
         f.render_widget(
             Paragraph::new(hint)
@@ -292,7 +502,7 @@ pub(super) fn render_help_modal(f: &mut Frame, app: &App, area: Rect) {
                 .alignment(Alignment::Right),
             Rect::new(
                 inner.x,
-                inner.y + inner.height.saturating_sub(1),
+                content_y + content_h.saturating_sub(1),
                 inner.width,
                 1,
             ),
@@ -528,6 +738,27 @@ mod tests {
         app.update.available = Some("v1.0.2".to_string());
         app.update.status = crate::app::UpdateStatus::Confirming;
         app
+    }
+
+    /// A long query used to push the match count and the Esc hint off the end
+    /// of the line, clipped away by the paragraph with nothing to show for it.
+    #[test]
+    fn help_search_keeps_the_count_and_hint_against_a_long_query() {
+        let mut app = make_app();
+        app.help_active = true;
+        app.help_query = "e".repeat(48);
+
+        let text = render_modal(&app, 80, 40);
+
+        assert!(text.contains("Esc to clear"), "hint was clipped: {text}");
+        assert!(
+            text.contains(&format!("/{}", KeybindGroup::total_bind_count())),
+            "match count was clipped: {text}"
+        );
+        assert!(
+            text.contains('…'),
+            "the query was not marked as trimmed: {text}"
+        );
     }
 
     #[test]

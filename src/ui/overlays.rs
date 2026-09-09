@@ -94,7 +94,7 @@ pub(super) fn render_command_overlay(f: &mut Frame, app: &App, area: Rect) {
             let style = if selected {
                 Style::default()
                     .bg(SELECT_BG)
-                    .fg(Color::White)
+                    .fg(SELECT_FG)
                     .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(DIM)
@@ -143,7 +143,7 @@ pub(super) fn render_sort_overlay(f: &mut Frame, app: &App, area: Rect) {
         let style = if selected {
             Style::default()
                 .bg(SELECT_BG)
-                .fg(Color::White)
+                .fg(SELECT_FG)
                 .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(DIM)
@@ -191,7 +191,7 @@ pub(super) fn render_artist_selection_modal(f: &mut Frame, app: &App, area: Rect
         let style = if selected {
             Style::default()
                 .bg(SELECT_BG)
-                .fg(Color::White)
+                .fg(SELECT_FG)
                 .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::White)

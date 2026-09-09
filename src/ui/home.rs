@@ -162,14 +162,7 @@ pub(super) fn render_home_section(
         .map(|(i, item)| {
             let is_selected = start + i == section.selected;
 
-            let title_style = if is_selected {
-                Style::default()
-                    .fg(Color::White)
-                    .bg(HIGHLIGHT_BG)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(Color::White)
-            };
+            let title_style = row_style(is_selected);
 
             ListItem::new(simple_row(
                 app,

@@ -51,7 +51,7 @@ pub(super) fn render_content(f: &mut Frame, app: &App, area: Rect) {
         Tab::Playlists => render_playlist_list(f, app, area),
         Tab::Favorites => {
             let title = list_title("Tracks", &app.favorites, app.favorites.items.len(), app);
-            render_track_list(f, app, &app.favorites, true, area, &title);
+            render_track_list(f, app, &app.favorites, app.content_focused(), area, &title);
         }
         Tab::Search => render_search_results(f, app, area),
     }
@@ -132,15 +132,8 @@ pub(super) fn render_artist_list(f: &mut Frame, app: &App, area: Rect) {
         .visible_window(height)
         .iter()
         .map(|(idx, artist)| {
-            let selected = *idx == app.artists.selected;
-            let style = if selected {
-                Style::default()
-                    .bg(HIGHLIGHT_BG)
-                    .fg(Color::White)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(Color::White)
-            };
+            let selected = *idx == app.artists.selected && app.content_focused();
+            let style = row_style(selected);
             ListItem::new(simple_row(
                 app,
                 &artist.name,
@@ -203,17 +196,8 @@ pub(super) fn render_fav_albums_list(f: &mut Frame, app: &App, area: Rect) {
         .visible_window(height)
         .iter()
         .map(|(idx, album)| {
-            let is_sel = *idx == selected;
-            let bg = if is_sel { HIGHLIGHT_BG } else { Color::Reset };
-            let title_style = Style::default()
-                .bg(bg)
-                .fg(Color::White)
-                .add_modifier(if is_sel {
-                    Modifier::BOLD
-                } else {
-                    Modifier::empty()
-                });
-            let sub_style = Style::default().bg(bg).fg(DIM);
+            let is_sel = *idx == selected && app.content_focused();
+            let title_style = row_style(is_sel);
             ListItem::new(album_row(
                 app,
                 album,
@@ -221,7 +205,6 @@ pub(super) fn render_fav_albums_list(f: &mut Frame, app: &App, area: Rect) {
                 is_sel,
                 true,
                 title_style,
-                sub_style,
             ))
         })
         .collect();
@@ -256,23 +239,9 @@ pub(super) fn render_playlist_list(f: &mut Frame, app: &App, area: Rect) {
         .visible_window(height)
         .iter()
         .map(|(i, pl)| {
-            let selected = *i == app.playlists.selected;
-            let style = if selected {
-                Style::default()
-                    .bg(HIGHLIGHT_BG)
-                    .fg(Color::White)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(Color::White)
-            };
-            ListItem::new(playlist_row(
-                app,
-                pl,
-                inner.width,
-                selected,
-                style,
-                Style::default().fg(DIM),
-            ))
+            let selected = *i == app.playlists.selected && app.content_focused();
+            let style = row_style(selected);
+            ListItem::new(playlist_row(app, pl, inner.width, selected, style))
         })
         .collect();
 
@@ -302,9 +271,9 @@ pub(super) fn album_row(
     is_selected: bool,
     show_artist: bool,
     style: Style,
-    dim: Style,
 ) -> Line<'static> {
     let phase = marquee_phase(app, is_selected);
+    let dim = row_dim_style(is_selected);
     let mut cells = vec![
         Cell::fixed(if is_selected { "▶ " } else { "  " }, 2, style),
         Cell::flex(album.title.clone(), 3, 0, style),
@@ -351,7 +320,7 @@ pub(super) fn album_row(
             .map(|b| format!(" [{b}]"))
             .unwrap_or_default(),
         8,
-        Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        row_accent_style(is_selected),
     ));
     cells.push(Cell::fixed(
         if app.favorite_album_ids.contains(&album.id) {
@@ -371,8 +340,8 @@ pub(super) fn playlist_row(
     width: u16,
     is_selected: bool,
     style: Style,
-    dim: Style,
 ) -> Line<'static> {
+    let dim = row_dim_style(is_selected);
     layout_row(
         width,
         vec![
@@ -442,7 +411,7 @@ pub(super) fn track_row(
             .map(|b| format!(" [{b}]"))
             .unwrap_or_default(),
         8,
-        Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        row_accent_style(is_selected),
     ));
     cells.push(Cell::fixed(
         if app.favorite_track_ids.contains(&track.id) {
@@ -479,21 +448,14 @@ pub(super) fn render_track_list(
         .visible_window(height)
         .iter()
         .map(|&(i, track)| {
-            let is_selected = i == selected && focused && !app.help_active;
+            let is_selected = i == selected && focused;
             let is_playing = app
                 .now_playing
                 .track
                 .as_ref()
                 .map(|t| t.id == track.id)
                 .unwrap_or(false);
-            let style = if is_selected {
-                Style::default()
-                    .bg(HIGHLIGHT_BG)
-                    .fg(Color::White)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(Color::White)
-            };
+            let style = row_style(is_selected);
             // `i` stays 0-based for selection; only the displayed ordinal is 1-based.
             let ordinal = format!("{:>3}. ", i + 1);
             ListItem::new(track_row(
@@ -552,7 +514,7 @@ mod tests {
         let style = Style::default();
 
         let row = |title: &str| {
-            let line = playlist_row(&t.app, &playlist(title, Some(12)), 60, false, style, style);
+            let line = playlist_row(&t.app, &playlist(title, Some(12)), 60, false, style);
             line.spans
                 .iter()
                 .map(|s| s.content.as_ref())
@@ -596,5 +558,68 @@ mod tests {
         assert!(screen.contains("181 tracks"), "{screen}");
         assert!(screen.contains("Run The Jewels"), "{screen}");
         assert!(!screen.contains("0 tracks"), "{screen}");
+    }
+
+    /// The selection bar is painted cell by cell, because `layout_row` pads each
+    /// one to its own width in its own style. A cell built from a bare
+    /// `Style::default()` therefore paints its padding in the terminal's
+    /// background — which is how the quality badge used to leave an eight-column
+    /// hole through the middle of the highlighted row, badge or no badge.
+    #[test]
+    fn no_cell_punches_a_hole_in_the_selected_row() {
+        use crate::api::models::MediaMetadata;
+        use crate::app::test_support::track;
+
+        let mut t = test_app();
+        let mut badged = track(1);
+        badged.media_metadata = Some(MediaMetadata {
+            tags: vec!["HIRES_LOSSLESS".to_string()],
+        });
+        t.app.favorites.append_page(vec![badged, track(2)], None);
+        std::mem::forget(t.api_rx);
+
+        let (w, h) = (80u16, 6u16);
+        let mut terminal = Terminal::new(TestBackend::new(w, h)).unwrap();
+        terminal
+            .draw(|f| {
+                render_track_list(
+                    f,
+                    &t.app,
+                    &t.app.favorites,
+                    true,
+                    Rect::new(0, 0, w, h),
+                    " Tracks ",
+                )
+            })
+            .unwrap();
+        let buf = terminal.backend().buffer().clone();
+
+        // Row 0 of the block's interior; row 0 of the area is the top border.
+        let row: Vec<_> = (0..w).map(|x| buf.cell((x, 1)).unwrap().clone()).collect();
+        let text: String = row.iter().map(|c| c.symbol()).collect();
+        assert!(text.contains("[MAX]"), "badge missing from {text:?}");
+
+        let holes: Vec<u16> = (0..w)
+            .filter(|&x| row[x as usize].bg != HIGHLIGHT_BG)
+            .collect();
+        assert!(
+            holes.is_empty(),
+            "columns {holes:?} lost the highlight in {text:?}"
+        );
+    }
+
+    /// The highlight background is true colour, so the text over it must be too:
+    /// `Color::White` is palette index 15, which a light terminal theme remaps to
+    /// its dark foreground, leaving dark text on the dark bar.
+    #[test]
+    fn the_selected_row_pins_its_foreground_colours() {
+        for style in [row_style(true), row_dim_style(true), row_accent_style(true)] {
+            assert!(
+                matches!(style.fg, Some(Color::Rgb(..))),
+                "{:?} is not true colour",
+                style.fg
+            );
+        }
+        assert_eq!(row_style(false).fg, Some(Color::White));
     }
 }

@@ -236,6 +236,15 @@ impl App {
         }
     }
 
+    /// Whether the main content pane owns the cursor.
+    ///
+    /// The queue and the help modal both take it, and exactly one cursor may be
+    /// drawn at a time — two highlighted rows on screen make neither pane look
+    /// like the one the keys go to.
+    pub fn content_focused(&self) -> bool {
+        !self.queue_focused && !self.help_active
+    }
+
     pub fn queue_scroll_offset(&self, height: usize) -> usize {
         let selected = if self.queue_focused {
             self.queue_cursor

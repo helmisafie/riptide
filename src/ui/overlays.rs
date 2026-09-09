@@ -368,7 +368,7 @@ pub(super) fn render_help_modal(f: &mut Frame, app: &App, area: Rect) {
     let filtered_binds: usize = filtered.iter().map(|g| g.binds.len()).sum();
     let hl_style = Style::default()
         .bg(SELECT_BG)
-        .fg(Color::White)
+        .fg(SELECT_FG)
         .add_modifier(Modifier::BOLD);
     let has_search = inner.height >= 3 && inner.width >= 20;
 

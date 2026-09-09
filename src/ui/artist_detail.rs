@@ -186,7 +186,7 @@ pub(super) fn render_artist_tracks_full(
 ) {
     let spinner = spinner_char(app.tick);
     let loading = detail.tracks.loading;
-    let focused = true;
+    let focused = app.content_focused();
 
     if loading {
         let msg = format!("Loading {spinner}");
@@ -209,14 +209,7 @@ pub(super) fn render_artist_tracks_full(
         .take(height)
         .map(|(i, track)| {
             let selected = i == detail.tracks.selected && focused;
-            let style = if selected {
-                Style::default()
-                    .bg(HIGHLIGHT_BG)
-                    .fg(Color::White)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(Color::White)
-            };
+            let style = row_style(selected);
             let playing = app
                 .now_playing
                 .track
@@ -249,7 +242,7 @@ pub(super) fn render_artist_albums(
 ) {
     let spinner = spinner_char(app.tick);
     let loading = detail.albums.loading;
-    let focused = true;
+    let focused = app.content_focused();
 
     if loading {
         let msg = format!("Loading {spinner}");
@@ -272,23 +265,8 @@ pub(super) fn render_artist_albums(
         .take(height)
         .map(|(i, album)| {
             let selected = i == detail.albums.selected && focused;
-            let style = if selected {
-                Style::default()
-                    .bg(HIGHLIGHT_BG)
-                    .fg(Color::White)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(Color::White)
-            };
-            ListItem::new(album_row(
-                app,
-                album,
-                area.width,
-                selected,
-                false,
-                style,
-                Style::default().fg(DIM),
-            ))
+            let style = row_style(selected);
+            ListItem::new(album_row(app, album, area.width, selected, false, style))
         })
         .collect();
 
@@ -304,7 +282,7 @@ pub(super) fn render_artist_eps(
 ) {
     let spinner = spinner_char(app.tick);
     let loading = detail.eps.loading;
-    let focused = true;
+    let focused = app.content_focused();
 
     if loading {
         let msg = format!("Loading {spinner}");
@@ -327,23 +305,8 @@ pub(super) fn render_artist_eps(
         .take(height)
         .map(|(i, album)| {
             let selected = i == detail.eps.selected && focused;
-            let style = if selected {
-                Style::default()
-                    .bg(HIGHLIGHT_BG)
-                    .fg(Color::White)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(Color::White)
-            };
-            ListItem::new(album_row(
-                app,
-                album,
-                area.width,
-                selected,
-                false,
-                style,
-                Style::default().fg(DIM),
-            ))
+            let style = row_style(selected);
+            ListItem::new(album_row(app, album, area.width, selected, false, style))
         })
         .collect();
 
@@ -359,7 +322,7 @@ pub(super) fn render_artist_singles(
 ) {
     let spinner = spinner_char(app.tick);
     let loading = detail.singles.loading;
-    let focused = true;
+    let focused = app.content_focused();
 
     if loading {
         let msg = format!("Loading {spinner}");
@@ -382,23 +345,8 @@ pub(super) fn render_artist_singles(
         .take(height)
         .map(|(i, album)| {
             let selected = i == detail.singles.selected && focused;
-            let style = if selected {
-                Style::default()
-                    .bg(HIGHLIGHT_BG)
-                    .fg(Color::White)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(Color::White)
-            };
-            ListItem::new(album_row(
-                app,
-                album,
-                area.width,
-                selected,
-                false,
-                style,
-                Style::default().fg(DIM),
-            ))
+            let style = row_style(selected);
+            ListItem::new(album_row(app, album, area.width, selected, false, style))
         })
         .collect();
 

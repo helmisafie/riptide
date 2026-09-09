@@ -161,21 +161,14 @@ pub(super) fn render_search_pane_tracks(f: &mut Frame, app: &App, area: Rect) {
         .skip(offset)
         .take(height)
         .map(|(i, t)| {
-            let selected = i == sel;
+            let selected = i == sel && app.content_focused();
             let is_playing = app
                 .now_playing
                 .track
                 .as_ref()
                 .map(|np| np.id == t.id)
                 .unwrap_or(false);
-            let style = if selected {
-                Style::default()
-                    .bg(HIGHLIGHT_BG)
-                    .fg(Color::White)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(Color::White)
-            };
+            let style = row_style(selected);
             ListItem::new(track_row(
                 app, t, area.width, None, selected, is_playing, style,
             ))
@@ -206,15 +199,8 @@ pub(super) fn render_search_pane_artists(f: &mut Frame, app: &App, area: Rect) {
         .skip(offset)
         .take(height)
         .map(|(i, a)| {
-            let selected = i == sel;
-            let style = if selected {
-                Style::default()
-                    .bg(HIGHLIGHT_BG)
-                    .fg(Color::White)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(Color::White)
-            };
+            let selected = i == sel && app.content_focused();
+            let style = row_style(selected);
             let heart = if app.favorite_artist_ids.contains(&a.id) {
                 " ❤"
             } else {
@@ -248,23 +234,9 @@ pub(super) fn render_search_pane_playlists(f: &mut Frame, app: &App, area: Rect)
         .skip(offset)
         .take(height)
         .map(|(i, pl)| {
-            let selected = i == sel;
-            let style = if selected {
-                Style::default()
-                    .bg(HIGHLIGHT_BG)
-                    .fg(Color::White)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(Color::White)
-            };
-            ListItem::new(playlist_row(
-                app,
-                pl,
-                area.width,
-                selected,
-                style,
-                Style::default().fg(DIM),
-            ))
+            let selected = i == sel && app.content_focused();
+            let style = row_style(selected);
+            ListItem::new(playlist_row(app, pl, area.width, selected, style))
         })
         .collect();
 

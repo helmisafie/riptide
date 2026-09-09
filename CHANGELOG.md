@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.4.0] - 2026-09-09
 
 ### Added
 - Self-update for binaries installed via `install.sh` or a manual release download. The player checks GitHub Releases shortly after startup; when a newer version exists the footer hints at it and `U` opens a dialog to download, verify the SHA-256 checksum, and install it atomically. A failed check can be retried from the dialog (`u`). Pacman/AUR, Nix and Cargo installs are left to their own package manager. Also available headless as `riptide update`
@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - `j` and `k` type into the help modal instead of scrolling it, now that it has a filter box of its own — the same rule the search box, the filter box and the command palette already followed. The arrow keys, `PageUp` and `PageDown` still scroll it
+
+### Fixed
+- The selected row was unreadable on light terminal themes. Its background has to be a fixed dark blue — a palette entry would follow the terminal's theme and could land anywhere — but the text over it was palette index 15, which a light theme remaps to its own *dark* foreground, leaving dark text on a dark bar. Every colour drawn over a selection is now true colour to match
+- The quality badge punched an eight-column hole through the middle of the highlighted row. Each cell of a row is padded to its own width in its own style, and the badge's style carried no background, so it painted that padding in the terminal's colour — whether or not the track had a badge to show
+- The library list and the queue could both draw a cursor at once, so neither looked like the pane the keys went to. Only the focused pane draws one now, and the queue marks it with the same filled bar as the library instead of a single column of border colour
+- The queue's divider and title were a fixed dark grey, which on a light terminal read stronger than the focused accent and inverted the signal they exist to give. Both now use palette colours that track the theme
 
 ## [1.3.0] - 2026-08-19
 

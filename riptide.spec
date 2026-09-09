@@ -6,7 +6,7 @@
 %global debug_package %{nil}
 
 Name:           riptide
-Version:        1.3.0
+Version:        1.4.0
 Release:        1%{?dist}
 Summary:        Terminal UI music player for Tidal
 License:        GPL-3.0-or-later
@@ -55,6 +55,16 @@ cargo test --release --locked
 %{_bindir}/%{name}
 
 %changelog
+* Wed Sep 09 2026 Fezzik the Giant <noreply@github.com> - 1.4.0-1
+- Added: Self-update for binaries installed via install.sh or a manual release download.
+- Added: Fullscreen album-art mode with Shift+A, on-demand high-resolution covers, and a compact playback HUD
+- Added: The help modal filters as you type.
+- Changed: j and k type into the help modal instead of scrolling it, now that it has a filter box of its own — the same rule the search box, the filter box and the command palette already followed.
+- Fixed: The selected row was unreadable on light terminal themes.
+- Fixed: The quality badge punched an eight-column hole through the middle of the highlighted row.
+- Fixed: The library list and the queue could both draw a cursor at once, so neither looked like the pane the keys went to.
+- Fixed: The queue's divider and title were a fixed dark grey, which on a light terminal read stronger than the focused accent and inverted the signal they exist to give.
+
 * Wed Aug 19 2026 Fezzik the Giant <noreply@github.com> - 1.3.0-1
 - Added: j and k move down and up in every list — the tabs, the detail views, the queue, the help modal and the pickers.
 - Added: Volume, seek, shuffle and stop now work from desktop media widgets and playerctl, alongside the play/pause and skip controls that already did.

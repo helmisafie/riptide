@@ -14,6 +14,9 @@ impl App {
                 self.artists.exhausted = true;
                 self.sort_artists();
                 self.rebuild_favorite_artist_ids();
+                if self.home_recommended.items.is_empty() && self.favorites.items.is_empty() {
+                    self.refresh_home_recommendations();
+                }
             }
 
             ApiResponse::FavAlbumsPage { albums, next_url } => {
@@ -79,6 +82,9 @@ impl App {
                 self.favorites.exhausted = true;
                 self.sort_favorites();
                 self.rebuild_favorite_track_ids();
+                if self.home_recommended.items.is_empty() {
+                    self.refresh_home_recommendations();
+                }
             }
 
             ApiResponse::ArtistTopTracks { artist_id, tracks } => {
@@ -731,6 +737,31 @@ impl App {
                 self.sync_home_art();
             }
 
+            ApiResponse::GenrePlaylists { path, playlists } => {
+                self.genre_playlists_cache
+                    .insert(path.clone(), playlists.clone());
+                let current_cat = &crate::api::models::GENRE_CATEGORIES[self.home_genre_index];
+                if current_cat.path == path {
+                    self.home_genres.items = playlists;
+                    self.home_genres.loading = false;
+                    self.home_genres.error = None;
+                    self.sync_home_art();
+                }
+            }
+
+            ApiResponse::HomeRecommendations {
+                tracks,
+                seed_title,
+                cover,
+            } => {
+                self.home_recommended.items = tracks;
+                self.home_recommended.loading = false;
+                self.home_recommended.error = None;
+                self.home_recommended_seed = Some(seed_title);
+                self.home_recommended_cover = cover;
+                self.sync_home_art();
+            }
+
             ApiResponse::Error(msg) => {
                 let display_msg = if msg.contains("no stream URL available for track") {
                     // The URL a Play was waiting on is never coming; leaving it
@@ -759,6 +790,10 @@ impl App {
 
                 self.set_status(display_msg.clone(), StatusLevel::Error);
                 // Also set error on home sections if they're loading
+                if self.home_recommended.loading {
+                    self.home_recommended.error = Some(display_msg.clone());
+                    self.home_recommended.loading = false;
+                }
                 if self.home_new_releases.loading {
                     self.home_new_releases.error = Some(display_msg.clone());
                     self.home_new_releases.loading = false;
@@ -768,8 +803,15 @@ impl App {
                     self.home_daily_mixes.loading = false;
                 }
                 if self.home_discovery_mixes.loading {
-                    self.home_discovery_mixes.error = Some(display_msg);
+                    self.home_discovery_mixes.error = Some(display_msg.clone());
                     self.home_discovery_mixes.loading = false;
+                }
+                if self.home_genres.loading {
+                    self.home_genres.error = Some(display_msg);
+                    self.home_genres.loading = false;
+                }
+                if msg.starts_with("playlist art:") || msg.starts_with("artist art:") {
+                    self.home_art.loading = false;
                 }
             }
         }

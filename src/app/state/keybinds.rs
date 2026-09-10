@@ -218,7 +218,15 @@ impl KeybindGroup {
                 },
                 Keybind {
                     key: "r",
-                    action: "Start radio",
+                    action: "Start radio / Refresh recs",
+                },
+                Keybind {
+                    key: "R",
+                    action: "Seed recs from track/playing",
+                },
+                Keybind {
+                    key: "[ or ]",
+                    action: "Switch genre/mood (Home)",
                 },
                 Keybind {
                     key: "c",

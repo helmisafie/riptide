@@ -10,7 +10,9 @@ use super::parse::*;
 use super::{ApiClient, OPENAPI_BASE};
 use crate::api::models::*;
 
-fn parse_radio_response(api_resp: &serde_json::Value) -> Result<Vec<Track>> {
+fn parse_radio_response(
+    api_resp: &serde_json::Value,
+) -> Result<(Vec<Track>, Option<(String, String)>)> {
     // Radio endpoint returns a playlist in data, with tracks in playlist.relationships.items.data
     let mut track_ids = Vec::new();
 
@@ -22,6 +24,13 @@ fn parse_radio_response(api_resp: &serde_json::Value) -> Result<Vec<Track>> {
     } else {
         None
     };
+
+    let artwork_map = build_included_map(api_resp, "artworks");
+    let cover = playlist_obj.and_then(|p| {
+        let uuid = p.get("id").and_then(|v| v.as_str())?;
+        let cover_url = resolve_cover_art(p, &artwork_map)?;
+        Some((uuid.to_string(), cover_url))
+    });
 
     if let Some(playlist) = playlist_obj {
         if let Some(track_refs) = playlist
@@ -119,15 +128,18 @@ fn parse_radio_response(api_resp: &serde_json::Value) -> Result<Vec<Track>> {
             }
         }
     }
-    Ok(tracks)
+    Ok((tracks, cover))
 }
 
 impl ApiClient {
-    pub async fn get_track_radio(&self, track_id: u64) -> Result<Page<Track>> {
+    pub async fn get_track_radio(
+        &self,
+        track_id: u64,
+    ) -> Result<(Page<Track>, Option<(String, String)>)> {
         tracing::debug!("Fetching radio for track {}", track_id);
         let token = self.token.read().await.clone();
         let url = format!(
-            "{OPENAPI_BASE}/tracks/{track_id}/relationships/radio?locale=en-US&include=radio.items.albums,radio.items.artists"
+            "{OPENAPI_BASE}/tracks/{track_id}/relationships/radio?locale=en-US&include=radio.items.albums,radio.items.artists,radio.coverArt"
         );
         let resp = self
             .http
@@ -151,20 +163,26 @@ impl ApiClient {
         let body = resp.text().await?;
         let api_resp: serde_json::Value = serde_json::from_str(&body)?;
 
-        let tracks = parse_radio_response(&api_resp)?;
+        let (tracks, cover) = parse_radio_response(&api_resp)?;
         tracing::debug!("Track radio parsed {} tracks", tracks.len());
         let total = tracks.len() as u32;
-        Ok(Page {
-            items: tracks,
-            total,
-        })
+        Ok((
+            Page {
+                items: tracks,
+                total,
+            },
+            cover,
+        ))
     }
 
-    pub async fn get_artist_radio(&self, artist_id: u64) -> Result<Page<Track>> {
+    pub async fn get_artist_radio(
+        &self,
+        artist_id: u64,
+    ) -> Result<(Page<Track>, Option<(String, String)>)> {
         tracing::debug!("Fetching radio for artist {}", artist_id);
         let token = self.token.read().await.clone();
         let url = format!(
-            "{OPENAPI_BASE}/artists/{artist_id}/relationships/radio?locale=en-US&include=radio.items.albums,radio.items.artists"
+            "{OPENAPI_BASE}/artists/{artist_id}/relationships/radio?locale=en-US&include=radio.items.albums,radio.items.artists,radio.coverArt"
         );
         let resp = self
             .http
@@ -188,12 +206,15 @@ impl ApiClient {
         let body = resp.text().await?;
         let api_resp: serde_json::Value = serde_json::from_str(&body)?;
 
-        let tracks = parse_radio_response(&api_resp)?;
+        let (tracks, cover) = parse_radio_response(&api_resp)?;
         tracing::debug!("Artist radio parsed {} tracks", tracks.len());
         let total = tracks.len() as u32;
-        Ok(Page {
-            items: tracks,
-            total,
-        })
+        Ok((
+            Page {
+                items: tracks,
+                total,
+            },
+            cover,
+        ))
     }
 }

@@ -20,7 +20,7 @@ use crate::mpris::MprisState;
 use crate::player::PlayerCmd;
 use crate::search::SearchState;
 use std::cell::Cell;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet, VecDeque};
 use tokio::sync::{mpsc, watch};
 
 /// Placeholder art shown before anything is playing.
@@ -48,9 +48,16 @@ pub struct App {
     pub view_stack: Vec<View>,
     pub art_fullscreen: bool,
 
+    pub home_recommended: HomeSection<Track>,
+    pub home_recommended_seed: Option<String>,
+    pub home_recommended_cover: Option<(String, String)>,
+    pub recent_recommendation_seeds: VecDeque<u64>,
     pub home_new_releases: HomeSection<Playlist>,
     pub home_daily_mixes: HomeSection<Playlist>,
     pub home_discovery_mixes: HomeSection<Playlist>,
+    pub home_genres: HomeSection<Playlist>,
+    pub home_genre_index: usize,
+    pub genre_playlists_cache: HashMap<String, Vec<Playlist>>,
     pub home_section_focus: HomeSectionFocus,
     pub home_art: HomeArt,
 
@@ -150,9 +157,16 @@ impl App {
             current_tab: Tab::Home,
             view_stack: Vec::new(),
             art_fullscreen: false,
+            home_recommended: HomeSection::default(),
+            home_recommended_seed: None,
+            home_recommended_cover: None,
+            recent_recommendation_seeds: VecDeque::new(),
             home_new_releases: HomeSection::default(),
             home_daily_mixes: HomeSection::default(),
             home_discovery_mixes: HomeSection::default(),
+            home_genres: HomeSection::default(),
+            home_genre_index: 0,
+            genre_playlists_cache: HashMap::new(),
             home_section_focus: HomeSectionFocus::default(),
             home_art: HomeArt::default(),
             artists: StatefulList::default(),
@@ -215,11 +229,11 @@ impl App {
         // playback event pushes real state.
         app.push_mpris_state();
 
-        app.load_home();
+        app.load_favorites();
         app.load_artists();
         app.load_fav_albums();
         app.load_playlists();
-        app.load_favorites();
+        app.load_home();
         app
     }
 

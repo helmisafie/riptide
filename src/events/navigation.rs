@@ -6,7 +6,7 @@
 use crossterm::event::{KeyCode, KeyEvent};
 
 use super::*;
-use crate::app::{App, ArtistDetailFocus, Tab, View};
+use crate::app::{App, ArtistDetailFocus, HomeSectionFocus, Tab, View};
 use crate::playlist::PlaylistDetailFocus;
 use crate::search::SearchPane;
 
@@ -506,6 +506,11 @@ pub(super) fn handle_navigation(app: &mut App, key: KeyEvent) {
             },
         },
         KeyCode::Char('a') => match app.current_tab {
+            Tab::Home if app.home_section_focus == HomeSectionFocus::Recommended => {
+                if let Some(track) = app.home_recommended.selected_item().cloned() {
+                    app.add_to_queue(track);
+                }
+            }
             Tab::Favorites => {
                 if let Some(track) = app.favorites.selected_item().cloned() {
                     app.add_to_queue(track);
@@ -523,6 +528,16 @@ pub(super) fn handle_navigation(app: &mut App, key: KeyEvent) {
         // by accident (#39). Removal moved to `d`, which already means "remove" in
         // the queue; `f` now says so rather than silently doing nothing.
         KeyCode::Char('f') => match app.current_tab {
+            Tab::Home if app.home_section_focus == HomeSectionFocus::Recommended => {
+                if let Some(track) = app.home_recommended.selected_item().cloned() {
+                    app.toggle_favorite_track(&track);
+                }
+            }
+            Tab::Home => {
+                if let Some(playlist) = app.selected_home_mix().cloned() {
+                    app.toggle_save_playlist(&playlist);
+                }
+            }
             Tab::Artists | Tab::Albums | Tab::Playlists | Tab::Favorites => {
                 app.set_status(
                     "Already in your library — press d to remove".to_string(),
@@ -570,6 +585,16 @@ pub(super) fn handle_navigation(app: &mut App, key: KeyEvent) {
             _ => {}
         },
         KeyCode::Char('c') => match app.current_tab {
+            Tab::Home if app.home_section_focus == HomeSectionFocus::Recommended => {
+                if let Some(url) = app.home_recommended.selected_item().map(|t| t.share_url()) {
+                    app.copy_url(url);
+                }
+            }
+            Tab::Home => {
+                if let Some(url) = app.selected_home_mix().map(|p| p.share_url()) {
+                    app.copy_url(url);
+                }
+            }
             Tab::Artists => {
                 if let Some(url) = app.artists.selected_item().map(|a| a.share_url()) {
                     app.copy_url(url);
@@ -626,6 +651,15 @@ pub(super) fn handle_navigation(app: &mut App, key: KeyEvent) {
         // reachable parent (their album); artist/album/playlist rows have no
         // parent id in the API models, so they no-op.
         KeyCode::Char('C') => match app.current_tab {
+            Tab::Home if app.home_section_focus == HomeSectionFocus::Recommended => {
+                if let Some(url) = app
+                    .home_recommended
+                    .selected_item()
+                    .map(|t| t.album.share_url())
+                {
+                    app.copy_url(url);
+                }
+            }
             Tab::Favorites => {
                 if let Some(url) = app.favorites.selected_item().map(|t| t.album.share_url()) {
                     app.copy_url(url);
@@ -652,6 +686,13 @@ pub(super) fn handle_navigation(app: &mut App, key: KeyEvent) {
             _ => {}
         },
         KeyCode::Char('r') => match app.current_tab {
+            Tab::Home if app.home_section_focus == HomeSectionFocus::Recommended => {
+                app.refresh_home_recommendations();
+                app.set_status(
+                    "Refreshing recommendations...".to_string(),
+                    crate::app::StatusLevel::Info,
+                );
+            }
             Tab::Artists => {
                 if let Some(artist) = app.artists.selected_item().cloned() {
                     app.start_artist_radio(&artist);
@@ -674,6 +715,38 @@ pub(super) fn handle_navigation(app: &mut App, key: KeyEvent) {
             }
             _ => {}
         },
+        KeyCode::Char('R') => {
+            let track_opt = if app.current_tab == Tab::Home {
+                app.now_playing.track.clone()
+            } else {
+                get_selected_track(app).or_else(|| app.now_playing.track.clone())
+            };
+
+            if let Some(track) = track_opt {
+                app.seed_recommendations_from_track(&track);
+                app.set_status(
+                    format!("Seeded recommendations from \"{}\"", track.title),
+                    crate::app::StatusLevel::Info,
+                );
+            } else {
+                app.set_status(
+                    "No track playing or selected to seed from".to_string(),
+                    crate::app::StatusLevel::Error,
+                );
+            }
+        }
+        KeyCode::Char('[') | KeyCode::Char('<')
+            if app.current_tab == Tab::Home
+                && app.home_section_focus == HomeSectionFocus::Genres =>
+        {
+            app.prev_genre();
+        }
+        KeyCode::Char(']') | KeyCode::Char('>')
+            if app.current_tab == Tab::Home
+                && app.home_section_focus == HomeSectionFocus::Genres =>
+        {
+            app.next_genre();
+        }
         _ => {}
     }
 }
@@ -684,6 +757,9 @@ pub(super) fn get_selected_track(app: &App) -> Option<crate::api::models::Track>
     }
     if let Some(View::ArtistDetail(detail)) = app.view_stack.last() {
         return detail.tracks.selected_item().cloned();
+    }
+    if app.current_tab == Tab::Home && app.home_section_focus == HomeSectionFocus::Recommended {
+        return app.home_recommended.selected_item().cloned();
     }
     if app.current_tab == Tab::Favorites {
         return app.favorites.selected_item().cloned();

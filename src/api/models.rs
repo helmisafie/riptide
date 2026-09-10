@@ -229,6 +229,35 @@ impl Playlist {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GenreCategory {
+    pub name: &'static str,
+    pub path: &'static str,
+    pub is_mood: bool,
+}
+
+pub const GENRE_CATEGORIES: &[GenreCategory] = &[
+    GenreCategory { name: "Indie / Rock", path: "Rock", is_mood: false },
+    GenreCategory { name: "Hip Hop / Rap", path: "Hiphop", is_mood: false },
+    GenreCategory { name: "Electronic", path: "Electronic", is_mood: false },
+    GenreCategory { name: "Dance", path: "Dance", is_mood: false },
+    GenreCategory { name: "Metal", path: "Metal", is_mood: false },
+    GenreCategory { name: "Pop", path: "Pop", is_mood: false },
+    GenreCategory { name: "R&B / Soul", path: "Funk", is_mood: false },
+    GenreCategory { name: "Jazz", path: "Jazz", is_mood: false },
+    GenreCategory { name: "Classical", path: "Classical", is_mood: false },
+    GenreCategory { name: "Latin", path: "Latin", is_mood: false },
+    GenreCategory { name: "Country", path: "Country", is_mood: false },
+    GenreCategory { name: "Folk / Americana", path: "Americana", is_mood: false },
+    GenreCategory { name: "Blues", path: "Blues", is_mood: false },
+    GenreCategory { name: "Reggae", path: "Reggae", is_mood: false },
+    GenreCategory { name: "Soundtracks", path: "Film", is_mood: false },
+    GenreCategory { name: "Focus", path: "concentrate", is_mood: true },
+    GenreCategory { name: "Workout", path: "workout", is_mood: true },
+    GenreCategory { name: "Relax", path: "relax", is_mood: true },
+    GenreCategory { name: "Party", path: "party", is_mood: true },
+];
+
 // ── Search ────────────────────────────────────────────────────────────────────
 
 // ── Lyrics ────────────────────────────────────────────────────────────────────

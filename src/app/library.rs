@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2025 Fezzik the Giant
 
-use super::{App, Removal, SortField, SortPalette, StatusLevel, Tab};
+use super::{App, HomeSectionFocus, Removal, SortField, SortPalette, StatusLevel, Tab};
 use crate::api::ApiRequest;
 use crate::api::models::{Album, Artist, Playlist, Track};
 
@@ -9,13 +9,179 @@ impl App {
     // ── Home ──────────────────────────────────────────────────────────────────
 
     pub fn load_home(&mut self) {
+        self.home_recommended.loading = true;
         self.home_new_releases.loading = true;
         self.home_daily_mixes.loading = true;
         self.home_discovery_mixes.loading = true;
+        self.home_genres.loading = true;
         let _ = self.api_tx.send(ApiRequest::LoadNewReleases);
         let _ = self.api_tx.send(ApiRequest::LoadDailyMixes);
         let _ = self.api_tx.send(ApiRequest::LoadDiscoveryMixes);
+        self.load_genre_playlists(self.home_genre_index);
+        self.refresh_home_recommendations();
     }
+
+    pub fn load_genre_playlists(&mut self, index: usize) {
+        if crate::api::models::GENRE_CATEGORIES.is_empty() {
+            return;
+        }
+        self.home_genre_index = index % crate::api::models::GENRE_CATEGORIES.len();
+        let cat = &crate::api::models::GENRE_CATEGORIES[self.home_genre_index];
+        self.home_genres.selected = 0;
+
+        if let Some(cached) = self.genre_playlists_cache.get(cat.path).cloned() {
+            self.home_genres.items = cached;
+            self.home_genres.loading = false;
+            self.home_genres.error = None;
+            self.sync_home_art();
+        } else {
+            self.home_genres.items.clear();
+            self.home_genres.loading = true;
+            self.home_genres.error = None;
+            if self.home_section_focus == HomeSectionFocus::Genres {
+                self.home_art.clear();
+                self.home_art.loading = true;
+            }
+            let _ = self.api_tx.send(ApiRequest::LoadGenrePlaylists {
+                path: cat.path.to_string(),
+                is_mood: cat.is_mood,
+            });
+        }
+    }
+
+    pub fn switch_genre(&mut self, index: usize) {
+        self.load_genre_playlists(index);
+    }
+
+    pub fn next_genre(&mut self) {
+        let count = crate::api::models::GENRE_CATEGORIES.len();
+        if count == 0 {
+            return;
+        }
+        let next_idx = (self.home_genre_index + 1) % count;
+        self.switch_genre(next_idx);
+    }
+
+    pub fn prev_genre(&mut self) {
+        let count = crate::api::models::GENRE_CATEGORIES.len();
+        if count == 0 {
+            return;
+        }
+        let prev_idx = if self.home_genre_index == 0 {
+            count - 1
+        } else {
+            self.home_genre_index - 1
+        };
+        self.switch_genre(prev_idx);
+    }
+
+    pub fn seed_recommendations_from_track(&mut self, track: &Track) {
+        self.record_recommendation_seed(track.id);
+        self.home_recommended.loading = true;
+        self.home_recommended.error = None;
+        self.home_recommended_cover = None;
+        if self.home_section_focus == HomeSectionFocus::Recommended {
+            self.home_art.clear();
+            self.home_art.loading = true;
+        }
+        let seed_title = format!("\"{}\" by {}", track.title, track.all_artist_names());
+        let _ = self.api_tx.send(ApiRequest::LoadHomeRecommendations {
+            seed_id: track.id,
+            seed_title,
+            is_artist: false,
+        });
+    }
+
+    fn record_recommendation_seed(&mut self, id: u64) {
+        if self.recent_recommendation_seeds.len() >= 15 {
+            self.recent_recommendation_seeds.pop_front();
+        }
+        self.recent_recommendation_seeds.push_back(id);
+    }
+
+    pub fn refresh_home_recommendations(&mut self) {
+        use rand::Rng;
+        use rand::seq::SliceRandom;
+        let mut rng = rand::thread_rng();
+
+        let chosen_track = {
+            let mut candidates: Vec<&Track> = self
+                .favorites
+                .items
+                .iter()
+                .filter(|t| t.duration >= 60 && !self.recent_recommendation_seeds.contains(&t.id))
+                .collect();
+
+            if candidates.is_empty() {
+                candidates = self
+                    .favorites
+                    .items
+                    .iter()
+                    .filter(|t| t.duration >= 60)
+                    .collect();
+            }
+
+            if candidates.is_empty() {
+                candidates = self.favorites.items.iter().collect();
+            }
+
+            if !candidates.is_empty() {
+                candidates.sort_by(|a, b| b.added_at.cmp(&a.added_at));
+                let recent_window = (candidates.len() / 5).clamp(10, 50).min(candidates.len());
+                let chosen = if rng.gen_bool(0.75) {
+                    candidates[..recent_window].choose(&mut rng)
+                } else {
+                    candidates.choose(&mut rng)
+                };
+                chosen.copied().cloned()
+            } else {
+                None
+            }
+        };
+
+        if let Some(track) = chosen_track {
+            self.seed_recommendations_from_track(&track);
+            return;
+        }
+
+        let chosen_artist = {
+            let mut artist_candidates: Vec<&Artist> = self
+                .artists
+                .items
+                .iter()
+                .filter(|a| !self.recent_recommendation_seeds.contains(&a.id))
+                .collect();
+
+            if artist_candidates.is_empty() {
+                artist_candidates = self.artists.items.iter().collect();
+            }
+
+            artist_candidates.choose(&mut rng).copied().cloned()
+        };
+
+        if let Some(artist) = chosen_artist {
+            self.record_recommendation_seed(artist.id);
+            self.home_recommended.loading = true;
+            self.home_recommended.error = None;
+            self.home_recommended_cover = None;
+            if self.home_section_focus == HomeSectionFocus::Recommended {
+                self.home_art.clear();
+                self.home_art.loading = true;
+            }
+            let seed_title = artist.name.clone();
+            let _ = self.api_tx.send(ApiRequest::LoadHomeRecommendations {
+                seed_id: artist.id,
+                seed_title,
+                is_artist: true,
+            });
+        } else if self.favorites.loading || self.artists.loading || !self.favorites.exhausted {
+            self.home_recommended.loading = true;
+            self.home_recommended.error = None;
+        } else {
+            self.home_recommended.loading = false;
+        }
+    }
+
 
     // ── Favorites ─────────────────────────────────────────────────────────────
 

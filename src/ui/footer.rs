@@ -70,7 +70,15 @@ pub(super) fn get_context_hint(app: &App) -> String {
         }
     } else {
         match app.current_tab {
-            Tab::Home => "↑↓ Select | ← → Switch section | Enter Open".to_string(),
+            Tab::Home => {
+                if app.home_section_focus == crate::app::HomeSectionFocus::Recommended {
+                    "↑↓ Select | ← → Section | Enter Play | a Add | f Fav | r Refresh | R From Playing | c Copy".to_string()
+                } else if app.home_section_focus == crate::app::HomeSectionFocus::Genres {
+                    "↑↓ Select | ← → Section | [ ] Switch Genre | Enter Open | f Fav | c Copy".to_string()
+                } else {
+                    "↑↓ Select | ← → Switch section | Enter Open | f Fav | c Copy".to_string()
+                }
+            }
             Tab::Favorites => "↑↓ Select | a Add | f Fav | r Radio | c Copy".to_string(),
             Tab::Artists => "↑↓ Select | f Follow | Enter Open".to_string(),
             Tab::Albums => "↑↓ Select | f Fav | Enter Open".to_string(),

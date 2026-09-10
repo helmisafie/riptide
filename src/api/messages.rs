@@ -123,6 +123,15 @@ pub enum ApiRequest {
     LoadDailyMixes,
     LoadDiscoveryMixes,
     LoadNewReleases,
+    LoadGenrePlaylists {
+        path: String,
+        is_mood: bool,
+    },
+    LoadHomeRecommendations {
+        seed_id: u64,
+        seed_title: String,
+        is_artist: bool,
+    },
     GetTrackDetails {
         track_id: u64,
     },
@@ -248,6 +257,15 @@ pub enum ApiResponse {
     DailyMixes(Vec<Playlist>),
     DiscoveryMixes(Vec<Playlist>),
     NewReleases(Vec<Playlist>),
+    GenrePlaylists {
+        path: String,
+        playlists: Vec<Playlist>,
+    },
+    HomeRecommendations {
+        tracks: Vec<Track>,
+        seed_title: String,
+        cover: Option<(String, String)>,
+    },
     TrackDetails {
         track_id: u64,
         track: Track,

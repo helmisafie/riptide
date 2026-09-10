@@ -8,8 +8,27 @@ use std::collections::HashMap;
 
 use super::parse::{build_included_map, resolve_cover_art};
 use super::playlists::parse_v2_playlist_tracks;
-use super::{ApiClient, OPENAPI_BASE};
+use super::{ApiClient, BASE, OPENAPI_BASE};
 use crate::api::models::*;
+
+#[derive(serde::Deserialize)]
+struct V1PlaylistsResponse {
+    items: Vec<V1PlaylistItem>,
+}
+
+#[derive(serde::Deserialize)]
+struct V1PlaylistItem {
+    uuid: String,
+    title: String,
+    #[serde(rename = "numberOfTracks")]
+    number_of_tracks: Option<u32>,
+    description: Option<String>,
+    #[serde(rename = "squareImage")]
+    square_image: Option<String>,
+    image: Option<String>,
+    #[serde(rename = "customImageUrl")]
+    custom_image_url: Option<String>,
+}
 
 /// Build a mix from a `playlists` object out of an `included` array.
 fn mix_from_playlist(
@@ -33,6 +52,26 @@ fn mix_from_playlist(
         cover: resolve_cover_art(playlist_obj, artwork_map),
         added_at: None,
     })
+}
+
+fn playlist_from_v1_item(item: V1PlaylistItem) -> Playlist {
+    let cover = item
+        .square_image
+        .as_deref()
+        .or(item.custom_image_url.as_deref())
+        .or(item.image.as_deref())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(cover_art_url);
+
+    Playlist {
+        uuid: item.uuid,
+        title: item.title,
+        number_of_tracks: item.number_of_tracks,
+        description: item.description,
+        cover,
+        added_at: None,
+    }
 }
 
 impl ApiClient {
@@ -153,6 +192,38 @@ impl ApiClient {
     pub async fn get_new_release_mixes(&self) -> Result<Vec<Playlist>> {
         self.get_mixes("/userNewReleaseMixes/me").await
     }
+
+    pub async fn get_genre_playlists(&self, path: &str, is_mood: bool) -> Result<Vec<Playlist>> {
+        let token = self.token.read().await.clone();
+        let country = if self.config.country_code.is_empty() {
+            "US"
+        } else {
+            &self.config.country_code
+        };
+        let endpoint = if is_mood { "moods" } else { "genres" };
+        let url = format!("{BASE}/{endpoint}/{path}/playlists?countryCode={country}&limit=30");
+
+        tracing::debug!("API request: GET {url}");
+
+        let resp = self.http.get(&url).bearer_auth(&token).send().await?;
+
+        let status = resp.status();
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            tracing::error!("API error {status} on {url}: {body}");
+            anyhow::bail!("HTTP {status}");
+        }
+
+        let body = resp.text().await?;
+        let parsed: V1PlaylistsResponse = serde_json::from_str(&body)?;
+        let playlists = parsed
+            .items
+            .into_iter()
+            .map(playlist_from_v1_item)
+            .collect();
+
+        Ok(playlists)
+    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -217,5 +288,43 @@ mod tests {
 
         assert_eq!(mix.title, "My New Arrivals");
         assert_eq!(mix.cover, None);
+    }
+
+    #[test]
+    fn v1_genre_playlists_parse_correctly() {
+        let json = r#"{
+            "items": [
+                {
+                    "uuid": "ef89d44a",
+                    "title": "Rock Arrivals",
+                    "numberOfTracks": 50,
+                    "description": "New rock",
+                    "squareImage": "60b9761c-449c-46e4-8fe5-dae9507e15d8",
+                    "image": null,
+                    "customImageUrl": null
+                },
+                {
+                    "uuid": "c3163d0a",
+                    "title": "Indie Anthems",
+                    "numberOfTracks": 30,
+                    "description": null,
+                    "squareImage": null,
+                    "image": "829f5653-cc46-49e4-b305-7964e85dc112",
+                    "customImageUrl": null
+                }
+            ]
+        }"#;
+
+        let parsed: V1PlaylistsResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(parsed.items.len(), 2);
+        assert_eq!(parsed.items[0].uuid, "ef89d44a");
+        assert_eq!(parsed.items[0].title, "Rock Arrivals");
+        assert_eq!(parsed.items[0].number_of_tracks, Some(50));
+
+        let pl1 = playlist_from_v1_item(parsed.items.into_iter().next().unwrap());
+        assert_eq!(
+            pl1.cover.as_deref(),
+            Some("https://resources.tidal.com/images/60b9761c/449c/46e4/8fe5/dae9507e15d8/320x320.jpg")
+        );
     }
 }

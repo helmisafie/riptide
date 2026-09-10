@@ -36,14 +36,16 @@ pub struct ArtistDetail {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HomeSectionFocus {
+    Recommended,
     NewReleases,
     DailyMixes,
     DiscoveryMixes,
+    Genres,
 }
 
 impl Default for HomeSectionFocus {
     fn default() -> Self {
-        Self::NewReleases
+        Self::Recommended
     }
 }
 

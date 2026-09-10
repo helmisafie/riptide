@@ -211,7 +211,13 @@ impl App {
     }
 
     pub fn open_selected_home_item(&mut self) {
-        if let Some(playlist) = self.selected_home_mix().cloned() {
+        if self.home_section_focus == HomeSectionFocus::Recommended {
+            if !self.home_recommended.items.is_empty() {
+                let idx = self.home_recommended.selected;
+                let tracks = self.home_recommended.items.clone();
+                self.play_tracks(tracks, idx);
+            }
+        } else if let Some(playlist) = self.selected_home_mix().cloned() {
             self.open_playlist(playlist);
         }
     }
@@ -220,21 +226,41 @@ impl App {
 
     pub fn home_section(&self) -> &HomeSection<Playlist> {
         match self.home_section_focus {
-            HomeSectionFocus::NewReleases => &self.home_new_releases,
+            HomeSectionFocus::Recommended | HomeSectionFocus::NewReleases => &self.home_new_releases,
             HomeSectionFocus::DailyMixes => &self.home_daily_mixes,
             HomeSectionFocus::DiscoveryMixes => &self.home_discovery_mixes,
+            HomeSectionFocus::Genres => &self.home_genres,
         }
     }
 
     pub fn selected_home_mix(&self) -> Option<&Playlist> {
-        self.home_section().selected_item()
+        match self.home_section_focus {
+            HomeSectionFocus::Recommended => None,
+            _ => self.home_section().selected_item(),
+        }
+    }
+
+    pub fn selected_home_track(&self) -> Option<&crate::api::models::Track> {
+        if self.home_section_focus == HomeSectionFocus::Recommended {
+            self.home_recommended.selected_item()
+        } else {
+            None
+        }
     }
 
     pub fn is_home_mix(&self, uuid: &str) -> bool {
+        if self
+            .home_recommended_cover
+            .as_ref()
+            .is_some_and(|(id, _)| id == uuid)
+        {
+            return true;
+        }
         [
             &self.home_new_releases,
             &self.home_daily_mixes,
             &self.home_discovery_mixes,
+            &self.home_genres,
         ]
         .iter()
         .any(|section| section.items.iter().any(|mix| mix.uuid == uuid))
@@ -242,18 +268,22 @@ impl App {
 
     pub fn home_next(&mut self) {
         match self.home_section_focus {
+            HomeSectionFocus::Recommended => self.home_recommended.next(),
             HomeSectionFocus::NewReleases => self.home_new_releases.next(),
             HomeSectionFocus::DailyMixes => self.home_daily_mixes.next(),
             HomeSectionFocus::DiscoveryMixes => self.home_discovery_mixes.next(),
+            HomeSectionFocus::Genres => self.home_genres.next(),
         }
         self.sync_home_art();
     }
 
     pub fn home_prev(&mut self) {
         match self.home_section_focus {
+            HomeSectionFocus::Recommended => self.home_recommended.prev(),
             HomeSectionFocus::NewReleases => self.home_new_releases.prev(),
             HomeSectionFocus::DailyMixes => self.home_daily_mixes.prev(),
             HomeSectionFocus::DiscoveryMixes => self.home_discovery_mixes.prev(),
+            HomeSectionFocus::Genres => self.home_genres.prev(),
         }
         self.sync_home_art();
     }
@@ -262,18 +292,22 @@ impl App {
     /// queue — the same thing `l` does past the last artist detail pane.
     pub fn home_section_next(&mut self) {
         self.home_section_focus = match self.home_section_focus {
+            HomeSectionFocus::Recommended => HomeSectionFocus::NewReleases,
             HomeSectionFocus::NewReleases => HomeSectionFocus::DailyMixes,
             HomeSectionFocus::DailyMixes => HomeSectionFocus::DiscoveryMixes,
-            HomeSectionFocus::DiscoveryMixes => return self.focus_queue(),
+            HomeSectionFocus::DiscoveryMixes => HomeSectionFocus::Genres,
+            HomeSectionFocus::Genres => return self.focus_queue(),
         };
         self.sync_home_art();
     }
 
     pub fn home_section_prev(&mut self) {
         self.home_section_focus = match self.home_section_focus {
-            HomeSectionFocus::NewReleases => HomeSectionFocus::DiscoveryMixes,
+            HomeSectionFocus::Recommended => HomeSectionFocus::Genres,
+            HomeSectionFocus::NewReleases => HomeSectionFocus::Recommended,
             HomeSectionFocus::DailyMixes => HomeSectionFocus::NewReleases,
             HomeSectionFocus::DiscoveryMixes => HomeSectionFocus::DailyMixes,
+            HomeSectionFocus::Genres => HomeSectionFocus::DiscoveryMixes,
         };
         self.sync_home_art();
     }
@@ -281,13 +315,26 @@ impl App {
     /// Bring the cover art in step with the selected mix. Cheap and idempotent,
     /// so anything that can change that selection may just call it.
     pub fn sync_home_art(&mut self) {
-        let Some((uuid, cover_url)) = self
-            .selected_home_mix()
-            .map(|mix| (mix.uuid.clone(), mix.cover.clone()))
-        else {
-            self.home_art.clear();
-            return;
+        let (uuid, cover_url) = match self.home_section_focus {
+            HomeSectionFocus::Recommended => match &self.home_recommended_cover {
+                Some((uuid, url)) => (uuid.clone(), Some(url.clone())),
+                None => {
+                    self.home_art.clear();
+                    return;
+                }
+            },
+            _ => {
+                let Some((uuid, cover_url)) = self
+                    .selected_home_mix()
+                    .map(|mix| (mix.uuid.clone(), mix.cover.clone()))
+                else {
+                    self.home_art.clear();
+                    return;
+                };
+                (uuid, cover_url)
+            }
         };
+
         if self.home_art.uuid.as_deref() == Some(uuid.as_str()) {
             return;
         }
@@ -469,9 +516,13 @@ mod tests {
         t.app.now_playing.queue = vec![crate::app::test_support::track(1)];
 
         t.app.home_section_next();
+        assert_eq!(t.app.home_section_focus, HomeSectionFocus::NewReleases);
+        t.app.home_section_next();
         assert_eq!(t.app.home_section_focus, HomeSectionFocus::DailyMixes);
         t.app.home_section_next();
         assert_eq!(t.app.home_section_focus, HomeSectionFocus::DiscoveryMixes);
+        t.app.home_section_next();
+        assert_eq!(t.app.home_section_focus, HomeSectionFocus::Genres);
 
         t.app.home_section_next();
         assert!(
@@ -480,9 +531,33 @@ mod tests {
         );
         assert_eq!(
             t.app.home_section_focus,
-            HomeSectionFocus::DiscoveryMixes,
+            HomeSectionFocus::Genres,
             "and does not wrap back to the first"
         );
+    }
+
+    #[test]
+    fn switching_genre_updates_index_and_requests_api_or_cache() {
+        let mut t = home_app();
+        t.drain_api();
+        assert_eq!(t.app.home_genre_index, 0);
+
+        t.app.next_genre();
+        assert_eq!(t.app.home_genre_index, 1);
+        assert!(t.app.home_genres.loading);
+        assert!(matches!(
+            t.api_rx.try_recv(),
+            Ok(ApiRequest::LoadGenrePlaylists { .. })
+        ));
+
+        let cat1 = &crate::api::models::GENRE_CATEGORIES[1];
+        t.app.genre_playlists_cache.insert(cat1.path.to_string(), vec![mix(10)]);
+        t.app.prev_genre();
+        t.drain_api();
+        t.app.next_genre();
+        assert_eq!(t.app.home_genres.items.len(), 1);
+        assert!(!t.app.home_genres.loading);
+        assert!(t.api_rx.try_recv().is_err());
     }
 
     /// Selection changes on every keypress, so a cover already fetched must not
@@ -507,5 +582,58 @@ mod tests {
             "both covers had already arrived"
         );
         assert_eq!(t.app.home_art.bytes.as_deref(), Some(&b"two"[..]));
+    }
+
+    #[test]
+    fn recommended_cover_is_fetched_and_cached() {
+        let mut t = home_app();
+        t.app.home_section_focus = HomeSectionFocus::Recommended;
+        t.app.home_recommended_cover = Some((
+            "rec-1".to_string(),
+            "https://example.invalid/rec.jpg".to_string(),
+        ));
+        t.app.sync_home_art();
+        assert_eq!(art_requests(&mut t), vec!["rec-1"]);
+
+        t.app.home_art.store("rec-1".to_string(), b"art".to_vec());
+        t.app.sync_home_art();
+        assert!(art_requests(&mut t).is_empty());
+        assert_eq!(t.app.home_art.bytes.as_deref(), Some(&b"art"[..]));
+    }
+
+    #[test]
+    fn seeding_recommendations_records_seed_and_requests_api() {
+        let mut t = test_app();
+        t.drain_api();
+        let trk = track();
+        t.app.seed_recommendations_from_track(&trk);
+        assert_eq!(t.app.recent_recommendation_seeds.back(), Some(&1));
+        assert!(t.app.home_recommended.loading);
+        assert!(matches!(
+            t.api_rx.try_recv(),
+            Ok(ApiRequest::LoadHomeRecommendations { seed_id: 1, .. })
+        ));
+    }
+
+    #[test]
+    fn refresh_recommendations_prefers_tracks_over_60s_not_in_recent_seeds() {
+        let mut t = test_app();
+        t.drain_api();
+        let mut short_track = track();
+        short_track.id = 10;
+        short_track.duration = 30;
+        let mut long_track = track();
+        long_track.id = 20;
+        long_track.duration = 200;
+
+        t.app.favorites.items = vec![short_track, long_track];
+        t.app.recent_recommendation_seeds.push_back(999);
+        t.app.refresh_home_recommendations();
+
+        assert_eq!(t.app.recent_recommendation_seeds.back(), Some(&20));
+        assert!(matches!(
+            t.api_rx.try_recv(),
+            Ok(ApiRequest::LoadHomeRecommendations { seed_id: 20, .. })
+        ));
     }
 }

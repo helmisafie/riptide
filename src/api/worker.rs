@@ -210,7 +210,8 @@ async fn handle_request(client: Arc<ApiClient>, req: ApiRequest) -> ApiResponse 
         }
 
         ApiRequest::FetchPlaylistArt { uuid, cover_url } => {
-            match client.fetch_bytes(&cover_url).await {
+            let url = cover_art_url(&cover_url);
+            match client.fetch_bytes(&url).await {
                 Ok(data) => ApiResponse::PlaylistArt {
                     uuid,
                     image_data: data,
@@ -358,12 +359,12 @@ async fn handle_request(client: Arc<ApiClient>, req: ApiRequest) -> ApiResponse 
         },
 
         ApiRequest::TrackRadio { track_id } => match client.get_track_radio(track_id).await {
-            Ok(page) => ApiResponse::RadioTracks { tracks: page.items },
+            Ok((page, _)) => ApiResponse::RadioTracks { tracks: page.items },
             Err(e) => ApiResponse::Error(format!("radio: {e}")),
         },
 
         ApiRequest::ArtistRadio { artist_id } => match client.get_artist_radio(artist_id).await {
-            Ok(page) => ApiResponse::RadioTracks { tracks: page.items },
+            Ok((page, _)) => ApiResponse::RadioTracks { tracks: page.items },
             Err(e) => ApiResponse::Error(format!("radio: {e}")),
         },
 
@@ -380,6 +381,33 @@ async fn handle_request(client: Arc<ApiClient>, req: ApiRequest) -> ApiResponse 
         ApiRequest::LoadNewReleases => match client.get_new_release_mixes().await {
             Ok(playlists) => ApiResponse::NewReleases(playlists),
             Err(e) => ApiResponse::Error(format!("new releases: {e}")),
+        },
+
+        ApiRequest::LoadGenrePlaylists { path, is_mood } => {
+            match client.get_genre_playlists(&path, is_mood).await {
+                Ok(playlists) => ApiResponse::GenrePlaylists { path, playlists },
+                Err(e) => ApiResponse::Error(format!("genre playlists ({path}): {e}")),
+            }
+        },
+
+        ApiRequest::LoadHomeRecommendations {
+            seed_id,
+            seed_title,
+            is_artist,
+        } => {
+            let result = if is_artist {
+                client.get_artist_radio(seed_id).await
+            } else {
+                client.get_track_radio(seed_id).await
+            };
+            match result {
+                Ok((page, cover)) => ApiResponse::HomeRecommendations {
+                    tracks: page.items,
+                    seed_title,
+                    cover,
+                },
+                Err(e) => ApiResponse::Error(format!("recommendations: {e}")),
+            }
         },
 
         ApiRequest::GetTrackDetails { track_id } => {

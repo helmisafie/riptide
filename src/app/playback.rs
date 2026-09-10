@@ -9,6 +9,7 @@ use crate::player::PlayerCmd;
 
 impl App {
     pub fn play_track(&mut self, track: Track) {
+        self.resume_pending = None;
         let id = track.id;
         self.now_playing.queue = vec![track.clone()];
         self.now_playing.queue_index = 0;
@@ -27,6 +28,7 @@ impl App {
         if tracks.is_empty() {
             return;
         }
+        self.resume_pending = None;
         let start_index = start_index.min(tracks.len() - 1);
         self.now_playing.clear_source_playlist();
 
@@ -73,10 +75,13 @@ impl App {
         // set_property is idempotent where `cycle` is not: DEs repeat MPRIS
         // Pause/Play, and two toggles racing the 500 ms pause-state poll would
         // undo each other.
+        self.now_playing.paused = paused;
         let _ = self.player_tx.send(PlayerCmd::SetPaused(paused));
+        self.push_mpris_state();
     }
 
     pub fn next_track(&mut self) {
+        self.resume_pending = None;
         let next_idx = self.now_playing.queue_index + 1;
         if next_idx < self.now_playing.queue.len() {
             self.now_playing.queue_index = next_idx;
@@ -95,6 +100,7 @@ impl App {
     }
 
     pub fn prev_track(&mut self) {
+        self.resume_pending = None;
         if self.now_playing.queue_index > 0 {
             let prev_idx = self.now_playing.queue_index - 1;
             self.now_playing.queue_index = prev_idx;
@@ -304,6 +310,7 @@ impl App {
         if idx >= self.now_playing.queue.len() {
             return;
         }
+        self.resume_pending = None;
         self.now_playing.queue_index = idx;
         self.now_playing.track = self.now_playing.queue.get(idx).cloned();
         self.now_playing.active = false;
@@ -517,7 +524,7 @@ impl App {
         self.seek_to_secs(target);
     }
 
-    fn seek_to_secs(&mut self, secs: f64) {
+    pub(crate) fn seek_to_secs(&mut self, secs: f64) {
         let _ = self.player_tx.send(PlayerCmd::SeekAbsolute(secs));
         self.now_playing.seek_pending = Some(crate::app::PendingSeek {
             target_secs: secs,
@@ -527,6 +534,57 @@ impl App {
         self.now_playing.position = secs;
         self.now_playing.position_epoch += 1;
         self.push_mpris_state();
+    }
+
+    pub fn restore_session(&mut self) {
+        let Some(session) = crate::app::PlaybackSession::load() else {
+            return;
+        };
+        if session.queue.is_empty() {
+            return;
+        }
+
+        self.now_playing.queue = session.queue;
+        self.now_playing.queue_index = session
+            .queue_index
+            .min(self.now_playing.queue.len().saturating_sub(1));
+        self.now_playing.source_playlist_uuid = session.source_playlist_uuid;
+
+        if let Some(track) = self.now_playing.queue.get(self.now_playing.queue_index).cloned() {
+            let pos = if (session.position as u32) + 2 >= track.duration {
+                0.0
+            } else {
+                session.position
+            };
+
+            self.now_playing.track = Some(track.clone());
+            self.now_playing.position = pos;
+            self.now_playing.duration = track.duration as f64;
+            self.now_playing.paused = session.paused;
+            self.resume_pending = Some((pos, session.paused));
+
+            let _ = self
+                .api_tx
+                .send(ApiRequest::ResolveStreamUrl { track_id: track.id });
+            self.fetch_now_playing_metadata();
+        }
+    }
+
+    pub fn save_session(&self) {
+        if self.now_playing.queue.is_empty() {
+            crate::app::PlaybackSession::clear();
+            return;
+        }
+        let session = crate::app::PlaybackSession {
+            queue: self.now_playing.queue.clone(),
+            queue_index: self.now_playing.queue_index,
+            position: self.now_playing.position,
+            paused: self.now_playing.paused,
+            source_playlist_uuid: self.now_playing.source_playlist_uuid.clone(),
+        };
+        if let Err(e) = session.save() {
+            tracing::warn!("Failed to save playback session: {e}");
+        }
     }
 }
 
@@ -1728,5 +1786,40 @@ mod tests {
             mpris_rx.borrow().art_url,
             "https://resources.tidal.com/images/33fd4c9b/5673/4c1e/bbd4/5346d397b8e0/640x640.jpg"
         );
+    }
+
+    #[test]
+    fn track_started_applies_resume_pending() {
+        let (mut app, _mpris_rx, _api_rx, mut player_rx) = make_app_watching_mpris();
+        app.now_playing.track = Some(track(1));
+        app.resume_pending = Some((42.0, true));
+
+        app.handle_player_event(PlayerEvent::TrackStarted);
+
+        assert_eq!(app.now_playing.position, 42.0);
+        assert!(app.now_playing.paused);
+        assert!(app.resume_pending.is_none());
+
+        let mut seeks = 0;
+        let mut pauses = 0;
+        while let Ok(cmd) = player_rx.try_recv() {
+            if matches!(cmd, PlayerCmd::SeekAbsolute(s) if s == 42.0) {
+                seeks += 1;
+            }
+            if matches!(cmd, PlayerCmd::SetPaused(true)) {
+                pauses += 1;
+            }
+        }
+        assert_eq!(seeks, 1);
+        assert_eq!(pauses, 1);
+    }
+
+    #[test]
+    fn new_playback_action_clears_resume_pending() {
+        let (mut app, _mpris_rx, _api_rx, _player_rx) = make_app_watching_mpris();
+        app.resume_pending = Some((50.0, false));
+
+        app.play_tracks(vec![track(1), track(2)], 0);
+        assert!(app.resume_pending.is_none());
     }
 }

@@ -84,6 +84,7 @@ pub struct App {
     pub fav_albums_sort: Option<SortField>,
     pub playlists_sort: Option<SortField>,
     pub now_playing: NowPlaying,
+    pub resume_pending: Option<(f64, bool)>,
 
     pub queue_focused: bool,
     pub queue_visible: bool,
@@ -195,6 +196,7 @@ impl App {
                 np.shuffle = prefs.shuffle;
                 np
             },
+            resume_pending: None,
             queue_focused: false,
             queue_visible: prefs.queue_visible,
             queue_cursor: 0,

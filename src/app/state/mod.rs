@@ -11,6 +11,7 @@ mod list;
 mod now_playing;
 mod palette;
 mod search;
+mod session;
 mod sort;
 
 pub use detail::*;
@@ -19,6 +20,7 @@ pub use list::*;
 pub use now_playing::*;
 pub use palette::*;
 pub use search::*;
+pub use session::*;
 pub use sort::*;
 
 // ── Tab ───────────────────────────────────────────────────────────────────────

@@ -843,6 +843,15 @@ impl App {
                     let _ = self.player_tx.send(PlayerCmd::SetMediaTitle(title));
                 }
                 self.push_mpris_state();
+
+                if let Some((pos, paused)) = self.resume_pending.take() {
+                    if pos > 0.0 {
+                        self.seek_to_secs(pos);
+                    }
+                    if paused {
+                        self.set_paused(true);
+                    }
+                }
             }
             PlayerEvent::TrackEnded => {
                 let next_idx = self.now_playing.queue_index + 1;

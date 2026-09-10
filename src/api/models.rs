@@ -15,7 +15,7 @@ pub struct Page<T> {
 
 // ── References ────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ArtistRef {
     pub name: String,
 }
@@ -39,7 +39,7 @@ impl Artist {
 
 // ── Albums ────────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct MediaMetadata {
     #[serde(default)]
     pub tags: Vec<String>,
@@ -101,7 +101,7 @@ fn tidal_art_url(image_id: &str, size: &str) -> String {
     )
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Album {
     pub id: u64,
     pub title: String,
@@ -140,7 +140,7 @@ impl Album {
 
 // ── Tracks ────────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Track {
     pub id: u64,
     pub title: String,

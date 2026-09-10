@@ -169,6 +169,8 @@ fn main() -> Result<()> {
         config.prefs.clone(),
     );
 
+    app.restore_session();
+
     // Reap any staged files left by a previous cancelled update.
     update::cleanup_stale_artifacts();
 
@@ -257,6 +259,7 @@ fn main() -> Result<()> {
     // file containing OAuth tokens on every volume keypress. A crash loses the
     // session's preference changes, which is an acceptable trade for not
     // touching the credential file continuously.
+    app.save_session();
     config.prefs = app.preferences();
     if let Err(e) = api::auth::save_config(&config) {
         tracing::error!("Failed to save preferences: {e}");

@@ -23,13 +23,13 @@ pub(super) fn render_footer(f: &mut Frame, app: &App, area: Rect) {
         // to switch from "install this" to "you are still running the old one".
         Some(tag) if app.update.status == crate::app::UpdateStatus::Done => Span::styled(
             format!("✓ {tag} — restart  {context_hint}"),
-            Style::default().fg(DIM),
+            Style::default().fg(dim()),
         ),
         Some(tag) => Span::styled(
             format!("↑ {tag} — U  {context_hint}"),
-            Style::default().fg(DIM),
+            Style::default().fg(dim()),
         ),
-        None => Span::styled(context_hint, Style::default().fg(DIM)),
+        None => Span::styled(context_hint, Style::default().fg(dim())),
     };
     f.render_widget(
         Paragraph::new(Line::from(context_span)).alignment(Alignment::Left),

@@ -62,7 +62,7 @@ fn render_lyrics_header(f: &mut Frame, app: &App, area: Rect) {
     if area.height > 1 {
         f.render_widget(
             Paragraph::new(metadata)
-                .style(Style::default().fg(DIM))
+                .style(Style::default().fg(dim()))
                 .alignment(Alignment::Center),
             Rect::new(area.x, area.y + 1, area.width, 1),
         );
@@ -72,7 +72,7 @@ fn render_lyrics_header(f: &mut Frame, app: &App, area: Rect) {
         f.render_widget(
             Block::default()
                 .borders(Borders::BOTTOM)
-                .border_style(Style::default().fg(DIM)),
+                .border_style(Style::default().fg(dim())),
             Rect::new(area.x, area.y + 2, area.width, 1),
         );
     }
@@ -89,7 +89,7 @@ fn render_lyrics_body(f: &mut Frame, app: &App, area: Rect) {
         let msg = format!("{} Loading lyrics...", spinner_char(app.tick));
         f.render_widget(
             Paragraph::new(msg)
-                .style(Style::default().fg(DIM))
+                .style(Style::default().fg(dim()))
                 .alignment(Alignment::Center),
             Rect::new(area.x, area.y + area.height / 2, area.width, 1),
         );
@@ -100,7 +100,7 @@ fn render_lyrics_body(f: &mut Frame, app: &App, area: Rect) {
     if total == 0 {
         f.render_widget(
             Paragraph::new("No lyrics available")
-                .style(Style::default().fg(DIM))
+                .style(Style::default().fg(dim()))
                 .alignment(Alignment::Center),
             Rect::new(area.x, area.y + area.height / 2, area.width, 1),
         );
@@ -132,12 +132,12 @@ fn render_lyrics_body(f: &mut Frame, app: &App, area: Rect) {
 
         let style = if is_active {
             Style::default()
-                .fg(HIGHLIGHT_FG)
+                .fg(highlight_fg())
                 .add_modifier(Modifier::BOLD)
         } else if diff.abs() <= 2 {
-            Style::default().fg(HIGHLIGHT_DIM)
+            Style::default().fg(highlight_dim())
         } else {
-            Style::default().fg(DIM)
+            Style::default().fg(dim())
         };
 
         let text = get_line(idx);
@@ -163,7 +163,7 @@ fn render_lyrics_hud(f: &mut Frame, app: &App, area: Rect) {
 
     let block = Block::default()
         .borders(Borders::TOP)
-        .border_style(Style::default().fg(DIM));
+        .border_style(Style::default().fg(dim()));
     let inner = block.inner(area);
     f.render_widget(block, area);
 
@@ -181,10 +181,10 @@ fn render_lyrics_hud(f: &mut Frame, app: &App, area: Rect) {
     let played = progress_columns(rail_area.width, app.now_playing.progress_ratio());
     f.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::styled("━".repeat(played as usize), Style::default().fg(ACCENT)),
+            Span::styled("━".repeat(played as usize), Style::default().fg(accent())),
             Span::styled(
                 "━".repeat(rail_area.width.saturating_sub(played) as usize),
-                Style::default().fg(DIM),
+                Style::default().fg(dim()),
             ),
         ])),
         rail_area,
@@ -205,12 +205,12 @@ fn render_lyrics_hud(f: &mut Frame, app: &App, area: Rect) {
 
         let half = inner.width / 2;
         f.render_widget(
-            Paragraph::new(left_text).style(Style::default().fg(DIM)),
+            Paragraph::new(left_text).style(Style::default().fg(dim())),
             Rect::new(inner.x + inset, inner.y + 1, half.saturating_sub(inset), 1),
         );
         f.render_widget(
             Paragraph::new(right_text)
-                .style(Style::default().fg(DIM))
+                .style(Style::default().fg(dim()))
                 .alignment(Alignment::Right),
             Rect::new(inner.x + half, inner.y + 1, half.saturating_sub(inset), 1),
         );

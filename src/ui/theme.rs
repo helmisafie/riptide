@@ -3,11 +3,125 @@
 
 //! Colours, spacing constants and small formatting helpers.
 
+use std::sync::atomic::{AtomicU8, Ordering};
 use ratatui::style::{Color, Modifier, Style};
+use crate::app::ThemePreset;
 
-pub(super) const ACCENT: Color = Color::Cyan;
+#[derive(Debug, Clone, Copy)]
+pub struct ThemeColors {
+    pub accent: Color,
+    pub dim: Color,
+    pub highlight_bg: Color,
+    pub highlight_fg: Color,
+    pub highlight_dim: Color,
+    pub highlight_accent: Color,
+    pub select_bg: Color,
+    pub select_fg: Color,
+}
 
-pub(super) const DIM: Color = Color::DarkGray;
+impl ThemePreset {
+    pub fn colors(&self) -> ThemeColors {
+        match self {
+            Self::Tidal => ThemeColors {
+                accent: Color::Cyan,
+                dim: Color::DarkGray,
+                highlight_bg: Color::Rgb(40, 40, 55),
+                highlight_fg: Color::Rgb(236, 236, 245),
+                highlight_dim: Color::Rgb(150, 150, 170),
+                highlight_accent: Color::Rgb(120, 210, 232),
+                select_bg: Color::Rgb(30, 100, 200),
+                select_fg: Color::Rgb(236, 236, 245),
+            },
+            Self::Catppuccin => ThemeColors {
+                accent: Color::Rgb(203, 166, 247), // Mauve
+                dim: Color::Rgb(108, 112, 134),    // Overlay0
+                highlight_bg: Color::Rgb(49, 50, 68), // Surface0
+                highlight_fg: Color::Rgb(205, 214, 244), // Text
+                highlight_dim: Color::Rgb(166, 173, 200), // Subtext0
+                highlight_accent: Color::Rgb(245, 194, 231), // Pink
+                select_bg: Color::Rgb(137, 180, 250), // Blue
+                select_fg: Color::Rgb(17, 17, 27),
+            },
+            Self::TokyoNight => ThemeColors {
+                accent: Color::Rgb(122, 162, 247), // Blue
+                dim: Color::Rgb(86, 95, 137),      // Comment
+                highlight_bg: Color::Rgb(41, 46, 66),
+                highlight_fg: Color::Rgb(192, 202, 245),
+                highlight_dim: Color::Rgb(115, 126, 170),
+                highlight_accent: Color::Rgb(187, 154, 247), // Purple
+                select_bg: Color::Rgb(65, 72, 104),
+                select_fg: Color::Rgb(236, 236, 245),
+            },
+            Self::Nord => ThemeColors {
+                accent: Color::Rgb(136, 192, 208), // Frost
+                dim: Color::Rgb(76, 86, 106),
+                highlight_bg: Color::Rgb(59, 66, 82),
+                highlight_fg: Color::Rgb(236, 239, 244),
+                highlight_dim: Color::Rgb(143, 188, 187),
+                highlight_accent: Color::Rgb(129, 161, 193),
+                select_bg: Color::Rgb(94, 129, 172),
+                select_fg: Color::Rgb(236, 239, 244),
+            },
+            Self::Gruvbox => ThemeColors {
+                accent: Color::Rgb(250, 189, 47), // Yellow
+                dim: Color::Rgb(146, 131, 116),    // Gray
+                highlight_bg: Color::Rgb(60, 56, 54),
+                highlight_fg: Color::Rgb(235, 219, 178),
+                highlight_dim: Color::Rgb(168, 153, 132),
+                highlight_accent: Color::Rgb(254, 128, 25), // Orange
+                select_bg: Color::Rgb(184, 187, 38), // Green
+                select_fg: Color::Rgb(40, 40, 40),
+            },
+        }
+    }
+}
+
+static ACTIVE_THEME: AtomicU8 = AtomicU8::new(0);
+
+pub(super) fn set_active_theme(preset: ThemePreset) {
+    let idx = ThemePreset::ALL.iter().position(|&p| p == preset).unwrap_or(0);
+    ACTIVE_THEME.store(idx as u8, Ordering::Relaxed);
+}
+
+pub(super) fn current_theme_preset() -> ThemePreset {
+    ThemePreset::ALL
+        .get(ACTIVE_THEME.load(Ordering::Relaxed) as usize)
+        .copied()
+        .unwrap_or(ThemePreset::Tidal)
+}
+
+pub(super) fn theme() -> ThemeColors {
+    current_theme_preset().colors()
+}
+
+pub(super) fn accent() -> Color {
+    theme().accent
+}
+
+pub(super) fn dim() -> Color {
+    theme().dim
+}
+
+#[allow(dead_code)]
+pub(super) fn highlight_bg() -> Color {
+    theme().highlight_bg
+}
+
+pub(super) fn highlight_fg() -> Color {
+    theme().highlight_fg
+}
+
+pub(super) fn highlight_dim() -> Color {
+    theme().highlight_dim
+}
+
+pub(super) fn select_bg() -> Color {
+    theme().select_bg
+}
+
+pub(super) fn select_fg() -> Color {
+    theme().select_fg
+}
 
 pub(super) fn fmt_sample_rate(hz: u32) -> String {
     match hz {
@@ -21,60 +135,48 @@ pub(super) fn fmt_sample_rate(hz: u32) -> String {
     }
 }
 
-/// Selected-row colours.
-///
-/// All four are true colour on purpose. The background has to be — a palette
-/// entry would follow the terminal theme and could land anywhere — and once it
-/// is fixed, every colour drawn over it must be fixed too. `Color::White` is
-/// palette index 15, which light themes remap to their *dark* text colour, so
-/// pairing it with a dark background gives dark-on-dark; `Color::Cyan` and
-/// `Color::DarkGray` are remapped the same way.
-pub(super) const HIGHLIGHT_BG: Color = Color::Rgb(40, 40, 55);
-pub(super) const HIGHLIGHT_FG: Color = Color::Rgb(236, 236, 245);
-pub(super) const HIGHLIGHT_DIM: Color = Color::Rgb(150, 150, 170);
-pub(super) const HIGHLIGHT_ACCENT: Color = Color::Rgb(120, 210, 232);
-
-pub(super) const SELECT_BG: Color = Color::Rgb(30, 100, 200);
-pub(super) const SELECT_FG: Color = Color::Rgb(236, 236, 245);
-
-/// The style a list row is drawn in.
-///
-/// Every cell of a selected row must carry this background: `layout_row` pads
-/// each cell to its full width, so one built from a bare `Style::default()`
-/// paints its padding in the terminal's background and punches a gap through
-/// the bar. Use [`row_dim_style`] and [`row_accent_style`] for cells that need
-/// their own colour rather than starting a new style.
 pub(super) fn row_style(is_selected: bool) -> Style {
+    let t = theme();
     if is_selected {
         Style::default()
-            .bg(HIGHLIGHT_BG)
-            .fg(HIGHLIGHT_FG)
+            .bg(t.highlight_bg)
+            .fg(t.highlight_fg)
             .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(Color::White)
     }
 }
 
-/// Secondary columns — year, track count, the artist beside an album title.
 pub(super) fn row_dim_style(is_selected: bool) -> Style {
+    let t = theme();
     if is_selected {
-        Style::default().bg(HIGHLIGHT_BG).fg(HIGHLIGHT_DIM)
+        Style::default().bg(t.highlight_bg).fg(t.highlight_dim)
     } else {
-        Style::default().fg(DIM)
+        Style::default().fg(t.dim)
     }
 }
 
-/// The quality badge, the one cell that keeps its own colour on every row.
 pub(super) fn row_accent_style(is_selected: bool) -> Style {
+    let t = theme();
     let style = Style::default().add_modifier(Modifier::BOLD);
     if is_selected {
-        style.bg(HIGHLIGHT_BG).fg(HIGHLIGHT_ACCENT)
+        style.bg(t.highlight_bg).fg(t.highlight_accent)
     } else {
-        style.fg(ACCENT)
+        style.fg(t.accent)
     }
 }
 
-pub(super) const QUEUE_W: u16 = 26;
+pub(super) fn responsive_queue_width(total_width: u16) -> u16 {
+    if total_width < 90 {
+        24
+    } else if total_width < 120 {
+        28
+    } else if total_width < 160 {
+        32
+    } else {
+        36
+    }
+}
 
 pub(super) const SPINNER: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
@@ -82,7 +184,19 @@ pub(super) fn spinner_char(tick: u64) -> char {
     SPINNER[(tick / 3) as usize % SPINNER.len()]
 }
 
-/// Blinking block for text inputs. Shared so every input box blinks in step.
 pub(super) fn cursor_char(tick: u64) -> &'static str {
     if (tick / 30).is_multiple_of(2) { "█" } else { " " }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn responsive_queue_width_scales_with_terminal_width() {
+        assert_eq!(responsive_queue_width(80), 24);
+        assert_eq!(responsive_queue_width(100), 28);
+        assert_eq!(responsive_queue_width(140), 32);
+        assert_eq!(responsive_queue_width(180), 36);
+    }
 }

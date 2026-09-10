@@ -54,6 +54,7 @@ use tabs::*;
 use theme::*;
 
 pub fn draw(f: &mut Frame, app: &App) {
+    set_active_theme(app.theme);
     let area = f.area();
     let overlays = Overlays::none()
         .with(Overlays::COMMAND, app.command.active)
@@ -86,8 +87,9 @@ pub fn draw(f: &mut Frame, app: &App) {
     render_tab_bar(f, app, rows[0]);
 
     if app.queue_visible {
+        let q_w = responsive_queue_width(rows[1].width);
         let cols =
-            Layout::horizontal([Constraint::Min(0), Constraint::Length(QUEUE_W)]).split(rows[1]);
+            Layout::horizontal([Constraint::Min(0), Constraint::Length(q_w)]).split(rows[1]);
         render_content(f, app, cols[0]);
         render_queue(f, app, cols[1]);
     } else {

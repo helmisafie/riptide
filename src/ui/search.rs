@@ -40,7 +40,7 @@ pub(super) fn render_search_modal(f: &mut Frame, app: &App, area: Rect) {
         .title(" Search ")
         .title_alignment(Alignment::Center)
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(ACCENT));
+        .border_style(Style::default().fg(accent()));
     let inner = block.inner(modal_area);
     f.render_widget(block, modal_area);
 
@@ -66,7 +66,7 @@ pub(super) fn render_search_results(f: &mut Frame, app: &App, area: Rect) {
     if app.search.total_results() == 0 && !app.search.loading {
         let block = Block::default()
             .borders(Borders::TOP)
-            .border_style(Style::default().fg(ACCENT));
+            .border_style(Style::default().fg(accent()));
         let inner = block.inner(area);
         f.render_widget(block, area);
 
@@ -81,24 +81,24 @@ pub(super) fn render_search_results(f: &mut Frame, app: &App, area: Rect) {
         // point at the key that reopens it rather than saying "start typing".
         let content: Line = if app.search.query.is_empty() {
             Line::from(vec![
-                Span::styled("Press ", Style::default().fg(DIM)),
+                Span::styled("Press ", Style::default().fg(dim())),
                 Span::styled(
                     "/",
-                    Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+                    Style::default().fg(accent()).add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(" to search", Style::default().fg(DIM)),
+                Span::styled(" to search", Style::default().fg(dim())),
             ])
         } else {
             Line::from(vec![
                 Span::styled(
                     format!("No results for \"{}\" — press ", app.search.query),
-                    Style::default().fg(DIM),
+                    Style::default().fg(dim()),
                 ),
                 Span::styled(
                     "/",
-                    Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+                    Style::default().fg(accent()).add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(" to search again", Style::default().fg(DIM)),
+                Span::styled(" to search again", Style::default().fg(dim())),
             ])
         };
         f.render_widget(
@@ -114,7 +114,7 @@ pub(super) fn render_search_results(f: &mut Frame, app: &App, area: Rect) {
         let block = Block::default()
             .title(format!(" Searching {spinner} "))
             .borders(Borders::TOP)
-            .border_style(Style::default().fg(DIM));
+            .border_style(Style::default().fg(dim()));
         f.render_widget(block, area);
         return;
     }
@@ -178,7 +178,7 @@ pub(super) fn render_search_pane_tracks(f: &mut Frame, app: &App, area: Rect) {
     if items.is_empty() {
         f.render_widget(
             Paragraph::new("No tracks")
-                .style(Style::default().fg(DIM))
+                .style(Style::default().fg(dim()))
                 .alignment(Alignment::Center),
             area,
         );
@@ -213,7 +213,7 @@ pub(super) fn render_search_pane_artists(f: &mut Frame, app: &App, area: Rect) {
     if items.is_empty() {
         f.render_widget(
             Paragraph::new("No artists")
-                .style(Style::default().fg(DIM))
+                .style(Style::default().fg(dim()))
                 .alignment(Alignment::Center),
             area,
         );
@@ -243,7 +243,7 @@ pub(super) fn render_search_pane_playlists(f: &mut Frame, app: &App, area: Rect)
     if items.is_empty() {
         f.render_widget(
             Paragraph::new("No playlists")
-                .style(Style::default().fg(DIM))
+                .style(Style::default().fg(dim()))
                 .alignment(Alignment::Center),
             area,
         );

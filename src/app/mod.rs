@@ -91,6 +91,9 @@ pub struct App {
     pub queue_cursor: usize,
     queue_viewport: ListViewport,
 
+    pub theme: ThemePreset,
+    pub visualizer: VisualizerStyle,
+
     /// Most recent library removal, restorable with `u` until the next one.
     pub last_removal: Option<Removal>,
 
@@ -201,6 +204,8 @@ impl App {
             queue_visible: prefs.queue_visible,
             queue_cursor: 0,
             queue_viewport: ListViewport::default(),
+            theme: prefs.theme,
+            visualizer: prefs.visualizer,
             last_removal: None,
             help_active: false,
             help_scroll: 0,
@@ -251,7 +256,58 @@ impl App {
             volume: self.now_playing.volume,
             shuffle: self.now_playing.shuffle,
             queue_visible: self.queue_visible,
+            theme: self.theme,
+            visualizer: self.visualizer,
         }
+    }
+
+    pub fn cycle_theme(&mut self) {
+        self.theme = self.theme.next();
+        self.set_status(
+            format!("Theme: {}", self.theme.display_name()),
+            StatusLevel::Info,
+        );
+    }
+
+    pub fn set_theme_by_name(&mut self, name: &str) -> bool {
+        let lower = name.trim().to_lowercase();
+        let Some(&preset) = ThemePreset::ALL
+            .iter()
+            .find(|&&p| p.name() == lower || p.display_name().to_lowercase() == lower)
+        else {
+            return false;
+        };
+        self.theme = preset;
+        self.set_status(
+            format!("Theme: {}", self.theme.display_name()),
+            StatusLevel::Info,
+        );
+        true
+    }
+
+    pub fn cycle_visualizer(&mut self) {
+        self.visualizer = self.visualizer.next();
+        self.set_status(
+            format!("Visualizer: {}", self.visualizer.display_name()),
+            StatusLevel::Info,
+        );
+    }
+
+    pub fn set_visualizer_by_name(&mut self, name: &str) -> bool {
+        let lower = name.trim().to_lowercase();
+        let Some(&viz) = VisualizerStyle::ALL.iter().find(|&&v| {
+            v.name() == lower
+                || v.display_name().to_lowercase() == lower
+                || (v == VisualizerStyle::ProgressRail && lower == "rail")
+        }) else {
+            return false;
+        };
+        self.visualizer = viz;
+        self.set_status(
+            format!("Visualizer: {}", self.visualizer.display_name()),
+            StatusLevel::Info,
+        );
+        true
     }
 
     /// Whether the main content pane owns the cursor.

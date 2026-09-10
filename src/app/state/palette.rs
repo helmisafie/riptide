@@ -52,6 +52,16 @@ impl CommandState {
         "search",
         "art",
         "lyrics",
+        "theme",
+        "theme:catppuccin",
+        "theme:gruvbox",
+        "theme:nord",
+        "theme:tidal",
+        "theme:tokyo-night",
+        "visualizer",
+        "visualizer:equalizer",
+        "visualizer:progress-rail",
+        "visualizer:waveform",
     ];
 
     pub fn matches(&self) -> Vec<&'static str> {
@@ -113,5 +123,18 @@ mod tests {
         let mut cmd = CommandState::default();
         cmd.input = "zzz".to_string();
         assert!(cmd.matches().is_empty());
+    }
+
+    #[test]
+    fn command_state_theme_and_visualizer_match() {
+        let mut cmd = CommandState::default();
+        cmd.input = "theme:".to_string();
+        let matches = cmd.matches();
+        assert!(matches.contains(&"theme:catppuccin"));
+        assert!(matches.contains(&"theme:nord"));
+
+        cmd.input = "theme".to_string();
+        let matches = cmd.matches();
+        assert_eq!(matches[0], "theme");
     }
 }

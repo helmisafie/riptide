@@ -19,7 +19,7 @@ pub(super) fn render_queue(f: &mut Frame, app: &App, area: Rect) {
     // Both palette colours, so the divider tracks the terminal theme. A fixed
     // dark grey read *stronger* than the focused accent against a light one,
     // which inverted the signal it was there to give.
-    let border_style = Style::default().fg(if focused { ACCENT } else { DIM });
+    let border_style = Style::default().fg(if focused { accent() } else { dim() });
     // No title on the block — ratatui doesn't reserve a row for titles on
     // Borders::LEFT-only blocks, so the title would be overdrawn by content.
     let block = Block::default()
@@ -28,16 +28,25 @@ pub(super) fn render_queue(f: &mut Frame, app: &App, area: Rect) {
     let inner = block.inner(area);
     f.render_widget(block, area);
 
+    let queue = &app.now_playing.queue;
+
     // Title row rendered manually at the top of the inner area.
-    let queue_title = if app.now_playing.shuffle {
-        " Queue ⇄ "
+    let queue_title = if queue.is_empty() {
+        " Queue ".to_string()
     } else {
-        " Queue "
+        let total_secs: u32 = queue.iter().map(|t| t.duration).sum();
+        let total_time_str = if total_secs >= 3600 {
+            format!("{}h {}m", total_secs / 3600, (total_secs % 3600) / 60)
+        } else {
+            format!("{}m", total_secs / 60)
+        };
+        let shuf = if app.now_playing.shuffle { " ⇄" } else { "" };
+        format!(" Queue{shuf} ({} · {}) ", queue.len(), total_time_str)
     };
     let title_style = if focused {
-        Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)
+        Style::default().fg(accent()).add_modifier(Modifier::BOLD)
     } else {
-        Style::default().fg(DIM)
+        Style::default().fg(dim())
     };
     f.render_widget(
         Paragraph::new(Span::styled(queue_title, title_style)),
@@ -48,12 +57,11 @@ pub(super) fn render_queue(f: &mut Frame, app: &App, area: Rect) {
     let content_y = inner.y + 1;
     let content_h = inner.height.saturating_sub(1);
 
-    let queue = &app.now_playing.queue;
     if queue.is_empty() {
         if content_h > 0 {
             f.render_widget(
                 Paragraph::new("no queue")
-                    .style(Style::default().fg(DIM))
+                    .style(Style::default().fg(dim()))
                     .alignment(Alignment::Center),
                 Rect::new(inner.x, content_y, inner.width, content_h),
             );
@@ -94,21 +102,26 @@ pub(super) fn render_queue(f: &mut Frame, app: &App, area: Rect) {
         let line_style = if is_cursor {
             row_style(true)
         } else if is_cur {
-            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)
+            Style::default().fg(accent()).add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::White)
         };
+
+        let dur = format!("{}:{:02}", track.duration / 60, track.duration % 60);
+        let dur_w = dur.len() as u16;
+        let artist_raw = track.all_artist_names();
+        let max_artist_w = inner.width.saturating_sub(dur_w + 3);
+        let artist_clipped = ellipsize(&artist_raw, max_artist_w);
+        let pad = (inner.width as usize)
+            .saturating_sub(2 + artist_clipped.chars().count() + dur.len());
+        let artist_line = format!("  {}{}{}", artist_clipped, " ".repeat(pad), dur);
 
         f.render_widget(
             Paragraph::new(ellipsize(&title_line, inner.width)).style(line_style),
             Rect::new(inner.x, y, inner.width, 1),
         );
         f.render_widget(
-            Paragraph::new(ellipsize(
-                &format!("  {}", track.all_artist_names()),
-                inner.width,
-            ))
-            .style(line_style),
+            Paragraph::new(artist_line).style(row_dim_style(is_cursor)),
             Rect::new(inner.x, y + 1, inner.width, 1),
         );
         y += item_h as u16;
@@ -132,7 +145,7 @@ mod tests {
         (0..h)
             .filter(|&y| {
                 xs.clone()
-                    .any(|x| buf.cell((x, y)).unwrap().bg == super::HIGHLIGHT_BG)
+                    .any(|x| buf.cell((x, y)).unwrap().bg == super::highlight_bg())
             })
             .collect()
     }
@@ -150,8 +163,9 @@ mod tests {
         std::mem::forget(t.api_rx);
 
         let (w, h) = (80u16, 24u16);
-        let library = 0..w - super::QUEUE_W;
-        let queue = w - super::QUEUE_W..w;
+        let qw = super::responsive_queue_width(w);
+        let library = 0..w - qw;
+        let queue = w - qw..w;
 
         t.app.queue_focused = false;
         assert!(

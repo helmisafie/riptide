@@ -153,6 +153,10 @@ impl KeybindGroup {
                     action: "Toggle shuffle",
                 },
                 Keybind {
+                    key: "v",
+                    action: "Cycle visualizer style",
+                },
+                Keybind {
                     key: "t",
                     action: "Show/hide queue",
                 },

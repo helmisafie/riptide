@@ -119,7 +119,7 @@ fn render_home_art(f: &mut Frame, app: &App, area: Rect) {
     let frame = Rect::new(area.x, area.y, cols + 2, rows + 2);
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(DIM));
+        .border_style(Style::default().fg(dim()));
     let inner = block.inner(frame);
     f.render_widget(block, frame);
 
@@ -128,7 +128,7 @@ fn render_home_art(f: &mut Frame, app: &App, area: Rect) {
     } else if app.home_art.loading {
         f.render_widget(
             Paragraph::new(spinner_char(app.tick).to_string())
-                .style(Style::default().fg(DIM))
+                .style(Style::default().fg(dim()))
                 .alignment(Alignment::Center),
             inner,
         );
@@ -150,7 +150,7 @@ fn render_home_art(f: &mut Frame, app: &App, area: Rect) {
             };
             f.render_widget(
                 Paragraph::new(label)
-                    .style(Style::default().fg(ACCENT).add_modifier(Modifier::BOLD))
+                    .style(Style::default().fg(accent()).add_modifier(Modifier::BOLD))
                     .wrap(Wrap { trim: true })
                     .alignment(Alignment::Center),
                 below,
@@ -171,7 +171,7 @@ fn render_home_art(f: &mut Frame, app: &App, area: Rect) {
             };
             f.render_widget(
                 Paragraph::new(label)
-                    .style(Style::default().fg(ACCENT).add_modifier(Modifier::BOLD))
+                    .style(Style::default().fg(accent()).add_modifier(Modifier::BOLD))
                     .wrap(Wrap { trim: true })
                     .alignment(Alignment::Center),
                 below,
@@ -184,7 +184,7 @@ fn render_home_recommended(f: &mut Frame, app: &App, area: Rect) {
     let section = &app.home_recommended;
     if section.loading {
         let text = format!("{} Loading...", spinner_char(app.tick));
-        f.render_widget(Paragraph::new(text).style(Style::default().fg(DIM)), area);
+        f.render_widget(Paragraph::new(text).style(Style::default().fg(dim())), area);
         return;
     }
 
@@ -199,7 +199,7 @@ fn render_home_recommended(f: &mut Frame, app: &App, area: Rect) {
     if section.items.is_empty() {
         f.render_widget(
             Paragraph::new("No recommendations available. Add favorites or follow artists to generate recommendations.")
-                .style(Style::default().fg(DIM)),
+                .style(Style::default().fg(dim())),
             area,
         );
         return;
@@ -247,7 +247,7 @@ pub(super) fn render_home_section(
 ) {
     if section.loading {
         let text = format!("{} Loading...", spinner_char(app.tick));
-        f.render_widget(Paragraph::new(text).style(Style::default().fg(DIM)), area);
+        f.render_widget(Paragraph::new(text).style(Style::default().fg(dim())), area);
         return;
     }
 
@@ -261,7 +261,7 @@ pub(super) fn render_home_section(
 
     if section.items.is_empty() {
         f.render_widget(
-            Paragraph::new("No items").style(Style::default().fg(DIM)),
+            Paragraph::new("No items").style(Style::default().fg(dim())),
             area,
         );
         return;
@@ -309,12 +309,12 @@ pub(super) fn render_home_genres(f: &mut Frame, app: &App, area: Rect) {
 
     if let Some(hdr) = header_area {
         let header_line = Line::from(vec![
-            Span::styled("  ◄ ", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)),
+            Span::styled("  ◄ ", Style::default().fg(accent()).add_modifier(Modifier::BOLD)),
             Span::styled(cat.name, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
-            Span::styled(" ►  ", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)),
+            Span::styled(" ►  ", Style::default().fg(accent()).add_modifier(Modifier::BOLD)),
             Span::styled(
                 format!("({}/{} · [ ] switch)", app.home_genre_index + 1, cat_count),
-                Style::default().fg(DIM),
+                Style::default().fg(dim()),
             ),
         ]);
         f.render_widget(Paragraph::new(header_line), hdr);
@@ -323,7 +323,7 @@ pub(super) fn render_home_genres(f: &mut Frame, app: &App, area: Rect) {
     let section = &app.home_genres;
     if section.loading {
         let text = format!("{} Loading {} playlists...", spinner_char(app.tick), cat.name);
-        f.render_widget(Paragraph::new(text).style(Style::default().fg(DIM)), list_area);
+        f.render_widget(Paragraph::new(text).style(Style::default().fg(dim())), list_area);
         return;
     }
 
@@ -337,7 +337,7 @@ pub(super) fn render_home_genres(f: &mut Frame, app: &App, area: Rect) {
 
     if section.items.is_empty() {
         f.render_widget(
-            Paragraph::new("No playlists found").style(Style::default().fg(DIM)),
+            Paragraph::new("No playlists found").style(Style::default().fg(dim())),
             list_area,
         );
         return;

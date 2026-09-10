@@ -15,15 +15,13 @@ pub(super) fn handle_command_input(app: &mut App, key: KeyEvent) {
         }
         KeyCode::Enter => {
             let matches = app.command.matches();
+            let typed = app.command.input.trim().to_string();
             let cmd = matches
                 .get(app.command.selected)
                 .or_else(|| matches.first())
-                .copied();
-            if let Some(cmd) = cmd {
-                execute_command(app, cmd);
-            } else {
-                app.command.active = false;
-            }
+                .copied()
+                .unwrap_or(&typed);
+            execute_command(app, cmd);
         }
         KeyCode::Tab => {
             // Accept ghost-text completion.
@@ -98,6 +96,18 @@ pub(super) fn execute_command(app: &mut App, cmd: &str) {
         }
         "lyrics" => {
             app.enter_lyrics_view();
+        }
+        "theme" => {
+            app.cycle_theme();
+        }
+        "visualizer" => {
+            app.cycle_visualizer();
+        }
+        c if c.starts_with("theme:") || c.starts_with("theme ") => {
+            app.set_theme_by_name(&c[6..]);
+        }
+        c if c.starts_with("visualizer:") || c.starts_with("visualizer ") => {
+            app.set_visualizer_by_name(&c[11..]);
         }
         _ => {}
     }
@@ -209,5 +219,47 @@ pub(super) fn handle_artist_selection_input(app: &mut App, key: KeyEvent) {
             app.open_selected_artist_from_selection();
         }
         _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::{ThemePreset, VisualizerStyle};
+    use crate::app::test_support::test_app;
+
+    #[test]
+    fn execute_command_cycles_and_sets_theme() {
+        let mut t = test_app();
+        assert_eq!(t.app.theme, ThemePreset::Tidal);
+
+        execute_command(&mut t.app, "theme");
+        assert_eq!(t.app.theme, ThemePreset::Catppuccin);
+
+        execute_command(&mut t.app, "theme:nord");
+        assert_eq!(t.app.theme, ThemePreset::Nord);
+    }
+
+    #[test]
+    fn execute_command_cycles_and_sets_visualizer() {
+        let mut t = test_app();
+        assert_eq!(t.app.visualizer, VisualizerStyle::Waveform);
+
+        execute_command(&mut t.app, "visualizer");
+        assert_eq!(t.app.visualizer, VisualizerStyle::Equalizer);
+
+        execute_command(&mut t.app, "visualizer:progress-rail");
+        assert_eq!(t.app.visualizer, VisualizerStyle::ProgressRail);
+    }
+
+    #[test]
+    fn handle_command_input_sets_theme_by_space_syntax() {
+        let mut t = test_app();
+        t.app.command.active = true;
+        t.app.command.input = "theme gruvbox".to_string();
+
+        handle_command_input(&mut t.app, KeyEvent::from(KeyCode::Enter));
+        assert_eq!(t.app.theme, ThemePreset::Gruvbox);
+        assert!(!t.app.command.active);
     }
 }

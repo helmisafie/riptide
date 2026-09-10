@@ -44,7 +44,7 @@ pub(super) fn render_artist_art(
 ) {
     let art_block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(DIM));
+        .border_style(Style::default().fg(dim()));
     let inner = art_block.inner(area);
     f.render_widget(art_block, area);
 
@@ -59,7 +59,7 @@ pub(super) fn render_artist_art(
     } else if detail.art_loading {
         f.render_widget(
             Paragraph::new(spinner_char(app.tick).to_string())
-                .style(Style::default().fg(DIM))
+                .style(Style::default().fg(dim()))
                 .alignment(Alignment::Center),
             inner,
         );
@@ -76,9 +76,9 @@ pub(super) fn render_artist_bio(
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(if focused {
-            Style::default().fg(ACCENT)
+            Style::default().fg(accent())
         } else {
-            Style::default().fg(DIM)
+            Style::default().fg(dim())
         });
     let inner = block.inner(area);
     f.render_widget(block, area);
@@ -90,7 +90,7 @@ pub(super) fn render_artist_bio(
     // Artist name always at the top.
     f.render_widget(
         Paragraph::new(detail.artist.name.as_str())
-            .style(Style::default().fg(ACCENT).add_modifier(Modifier::BOLD))
+            .style(Style::default().fg(accent()).add_modifier(Modifier::BOLD))
             .alignment(Alignment::Center),
         Rect::new(inner.x, inner.y, inner.width, 1),
     );
@@ -104,7 +104,7 @@ pub(super) fn render_artist_bio(
     if detail.bio_loading {
         f.render_widget(
             Paragraph::new(spinner_char(app.tick).to_string())
-                .style(Style::default().fg(DIM))
+                .style(Style::default().fg(dim()))
                 .alignment(Alignment::Center),
             bio_area,
         );
@@ -133,7 +133,7 @@ pub(super) fn render_artist_bio(
     } else {
         f.render_widget(
             Paragraph::new("No biography available.")
-                .style(Style::default().fg(DIM))
+                .style(Style::default().fg(dim()))
                 .alignment(Alignment::Center),
             bio_area,
         );
@@ -191,7 +191,7 @@ pub(super) fn render_artist_tracks_full(
     if loading {
         let msg = format!("Loading {spinner}");
         f.render_widget(
-            Paragraph::new(msg).style(Style::default().fg(DIM)),
+            Paragraph::new(msg).style(Style::default().fg(dim())),
             Rect::new(area.x, area.y, area.width, 1),
         );
     }
@@ -247,7 +247,7 @@ pub(super) fn render_artist_albums(
     if loading {
         let msg = format!("Loading {spinner}");
         f.render_widget(
-            Paragraph::new(msg).style(Style::default().fg(DIM)),
+            Paragraph::new(msg).style(Style::default().fg(dim())),
             Rect::new(area.x, area.y, area.width, 1),
         );
     }
@@ -287,7 +287,7 @@ pub(super) fn render_artist_eps(
     if loading {
         let msg = format!("Loading {spinner}");
         f.render_widget(
-            Paragraph::new(msg).style(Style::default().fg(DIM)),
+            Paragraph::new(msg).style(Style::default().fg(dim())),
             Rect::new(area.x, area.y, area.width, 1),
         );
     }
@@ -327,7 +327,7 @@ pub(super) fn render_artist_singles(
     if loading {
         let msg = format!("Loading {spinner}");
         f.render_widget(
-            Paragraph::new(msg).style(Style::default().fg(DIM)),
+            Paragraph::new(msg).style(Style::default().fg(dim())),
             Rect::new(area.x, area.y, area.width, 1),
         );
     }

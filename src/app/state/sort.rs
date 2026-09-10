@@ -26,6 +26,100 @@ impl SortField {
     }
 }
 
+// ── Themes and Visualizer ─────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ThemePreset {
+    #[default]
+    Tidal,
+    Catppuccin,
+    TokyoNight,
+    Nord,
+    Gruvbox,
+}
+
+impl ThemePreset {
+    pub const ALL: &'static [ThemePreset] = &[
+        ThemePreset::Tidal,
+        ThemePreset::Catppuccin,
+        ThemePreset::TokyoNight,
+        ThemePreset::Nord,
+        ThemePreset::Gruvbox,
+    ];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Tidal => "tidal",
+            Self::Catppuccin => "catppuccin",
+            Self::TokyoNight => "tokyo-night",
+            Self::Nord => "nord",
+            Self::Gruvbox => "gruvbox",
+        }
+    }
+
+    pub fn display_name(self) -> &'static str {
+        match self {
+            Self::Tidal => "Tidal Cyan",
+            Self::Catppuccin => "Catppuccin Mocha",
+            Self::TokyoNight => "Tokyo Night",
+            Self::Nord => "Nord",
+            Self::Gruvbox => "Gruvbox Dark",
+        }
+    }
+
+    pub fn next(self) -> Self {
+        match self {
+            Self::Tidal => Self::Catppuccin,
+            Self::Catppuccin => Self::TokyoNight,
+            Self::TokyoNight => Self::Nord,
+            Self::Nord => Self::Gruvbox,
+            Self::Gruvbox => Self::Tidal,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum VisualizerStyle {
+    #[default]
+    Waveform,
+    Equalizer,
+    ProgressRail,
+}
+
+impl VisualizerStyle {
+    pub const ALL: &'static [VisualizerStyle] = &[
+        VisualizerStyle::Waveform,
+        VisualizerStyle::Equalizer,
+        VisualizerStyle::ProgressRail,
+    ];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Waveform => "waveform",
+            Self::Equalizer => "equalizer",
+            Self::ProgressRail => "progress-rail",
+        }
+    }
+
+    pub fn display_name(self) -> &'static str {
+        match self {
+            Self::Waveform => "Waveform",
+            Self::Equalizer => "Equalizer",
+            Self::ProgressRail => "Progress Rail",
+        }
+    }
+
+    pub fn next(self) -> Self {
+        match self {
+            Self::Waveform => Self::Equalizer,
+            Self::Equalizer => Self::ProgressRail,
+            Self::ProgressRail => Self::Waveform,
+        }
+    }
+}
+
 // ── Persisted preferences ────────────────────────────────────────────────────
 
 /// User choices that survive restarts, stored inside `Config`.
@@ -49,6 +143,10 @@ pub struct Preferences {
     pub shuffle: bool,
     #[serde(default = "default_queue_visible")]
     pub queue_visible: bool,
+    #[serde(default)]
+    pub theme: ThemePreset,
+    #[serde(default)]
+    pub visualizer: VisualizerStyle,
 }
 
 fn default_volume() -> u8 {
@@ -68,6 +166,8 @@ impl Default for Preferences {
             volume: default_volume(),
             shuffle: false,
             queue_visible: default_queue_visible(),
+            theme: ThemePreset::default(),
+            visualizer: VisualizerStyle::default(),
         }
     }
 }
@@ -101,5 +201,53 @@ impl SortPalette {
             ],
             Tab::Search => &[],
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn theme_preset_cycles_through_all_variants() {
+        let mut t = ThemePreset::Tidal;
+        for &expected in ThemePreset::ALL {
+            assert_eq!(t, expected);
+            t = t.next();
+        }
+        assert_eq!(t, ThemePreset::Tidal);
+    }
+
+    #[test]
+    fn visualizer_style_cycles_through_all_variants() {
+        let mut v = VisualizerStyle::Waveform;
+        for &expected in VisualizerStyle::ALL {
+            assert_eq!(v, expected);
+            v = v.next();
+        }
+        assert_eq!(v, VisualizerStyle::Waveform);
+    }
+
+    #[test]
+    fn preferences_deserializes_missing_fields_with_defaults() {
+        let json = r#"{"volume":80,"shuffle":true}"#;
+        let prefs: Preferences = serde_json::from_str(json).unwrap();
+        assert_eq!(prefs.volume, 80);
+        assert!(prefs.shuffle);
+        assert_eq!(prefs.theme, ThemePreset::Tidal);
+        assert_eq!(prefs.visualizer, VisualizerStyle::Waveform);
+    }
+
+    #[test]
+    fn preferences_roundtrip_preserves_theme_and_visualizer() {
+        let prefs = Preferences {
+            theme: ThemePreset::Catppuccin,
+            visualizer: VisualizerStyle::Equalizer,
+            ..Default::default()
+        };
+        let serialized = serde_json::to_string(&prefs).unwrap();
+        let deserialized: Preferences = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.theme, ThemePreset::Catppuccin);
+        assert_eq!(deserialized.visualizer, VisualizerStyle::Equalizer);
     }
 }

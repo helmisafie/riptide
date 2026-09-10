@@ -37,12 +37,12 @@ pub(super) fn render_carousel(
     let mut spans = vec![Span::raw(" ")];
     for (i, (label, active)) in labels.iter().enumerate() {
         if i > 0 {
-            spans.push(Span::styled(SEPARATOR, Style::default().fg(DIM)));
+            spans.push(Span::styled(SEPARATOR, Style::default().fg(dim())));
         }
         let style = if *active {
-            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)
+            Style::default().fg(accent()).add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(DIM)
+            Style::default().fg(dim())
         };
         spans.push(Span::styled(label.clone(), style));
     }
@@ -50,7 +50,7 @@ pub(super) fn render_carousel(
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(DIM))
+        .border_style(Style::default().fg(dim()))
         .title(Line::from(spans));
 
     let inner = block.inner(area);

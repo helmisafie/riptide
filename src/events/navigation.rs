@@ -18,6 +18,7 @@ pub(super) fn handle_navigation(app: &mut App, key: KeyEvent) {
         PlayTracks(Vec<crate::api::models::Track>, usize),
         OpenAlbum,
         AddToQueue(crate::api::models::Track),
+        PlayNext(crate::api::models::Track),
         ToggleFavoriteTrack(crate::api::models::Track),
         ToggleFollowArtist(crate::api::models::Artist),
         ToggleFavoriteAlbum(crate::api::models::Album),
@@ -116,6 +117,12 @@ pub(super) fn handle_navigation(app: &mut App, key: KeyEvent) {
                 KeyCode::Char('a') if detail.focus == ArtistDetailFocus::Tracks => {
                     match detail.tracks.items.get(detail.tracks.selected).cloned() {
                         Some(t) => Action::AddToQueue(t),
+                        None => return,
+                    }
+                }
+                KeyCode::Char('P') if detail.focus == ArtistDetailFocus::Tracks => {
+                    match detail.tracks.items.get(detail.tracks.selected).cloned() {
+                        Some(t) => Action::PlayNext(t),
                         None => return,
                     }
                 }
@@ -268,6 +275,16 @@ pub(super) fn handle_navigation(app: &mut App, key: KeyEvent) {
                         return;
                     }
                 }
+                KeyCode::Char('P') => {
+                    if detail.focus == PlaylistDetailFocus::Tracks {
+                        match detail.tracks.items.get(detail.tracks.selected).cloned() {
+                            Some(t) => Action::PlayNext(t),
+                            None => return,
+                        }
+                    } else {
+                        return;
+                    }
+                }
                 KeyCode::Char('f') => {
                     if detail.focus == PlaylistDetailFocus::Tracks {
                         match detail.tracks.items.get(detail.tracks.selected).cloned() {
@@ -342,6 +359,12 @@ pub(super) fn handle_navigation(app: &mut App, key: KeyEvent) {
                             None => return,
                         }
                     }
+                    KeyCode::Char('P') => {
+                        match detail.tracks.items.get(detail.tracks.selected).cloned() {
+                            Some(t) => Action::PlayNext(t),
+                            None => return,
+                        }
+                    }
                     KeyCode::Char('f') => {
                         match detail.tracks.items.get(detail.tracks.selected).cloned() {
                             Some(t) => Action::ToggleFavoriteTrack(t),
@@ -381,6 +404,10 @@ pub(super) fn handle_navigation(app: &mut App, key: KeyEvent) {
         }
         Action::AddToQueue(track) => {
             app.add_to_queue(track);
+            return;
+        }
+        Action::PlayNext(track) => {
+            app.play_next(track);
             return;
         }
         Action::ToggleFavoriteTrack(track) => {
@@ -519,6 +546,24 @@ pub(super) fn handle_navigation(app: &mut App, key: KeyEvent) {
             Tab::Search if app.search.pane == SearchPane::Tracks => {
                 if let Some(track) = app.search.tracks.get(app.search.track_sel).cloned() {
                     app.add_to_queue(track);
+                }
+            }
+            _ => {}
+        },
+        KeyCode::Char('P') => match app.current_tab {
+            Tab::Home if app.home_section_focus == HomeSectionFocus::Recommended => {
+                if let Some(track) = app.home_recommended.selected_item().cloned() {
+                    app.play_next(track);
+                }
+            }
+            Tab::Favorites => {
+                if let Some(track) = app.favorites.selected_item().cloned() {
+                    app.play_next(track);
+                }
+            }
+            Tab::Search if app.search.pane == SearchPane::Tracks => {
+                if let Some(track) = app.search.tracks.get(app.search.track_sel).cloned() {
+                    app.play_next(track);
                 }
             }
             _ => {}

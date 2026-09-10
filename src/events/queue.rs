@@ -98,6 +98,9 @@ pub(super) fn handle_queue_input(app: &mut App, key: KeyEvent) {
                 );
             }
         }
+        KeyCode::Char('P') => {
+            app.move_queue_track_to_play_next(app.queue_cursor);
+        }
         // Anything the queue doesn't claim falls through to the global bindings
         // so transport, volume, tabs and help keep working in here.
         _ => {

@@ -235,6 +235,19 @@ impl App {
         self.push_mpris_state();
     }
 
+    pub fn move_queue_track_to_play_next(&mut self, cursor: usize) {
+        let qi = self.now_playing.queue_index;
+        if cursor > qi + 1 && cursor < self.now_playing.queue.len() {
+            let track = self.now_playing.queue.remove(cursor);
+            let title = track.title.clone();
+            self.now_playing.queue.insert(qi + 1, track);
+            self.replace_prefetched_next();
+            self.queue_cursor = qi + 1;
+            self.set_status(format!("Playing next: {title}"), StatusLevel::Info);
+            self.push_mpris_state();
+        }
+    }
+
     pub fn add_to_queue(&mut self, track: Track) {
         if self.now_playing.track.is_none() {
             self.play_track(track);
@@ -254,6 +267,22 @@ impl App {
                 .send(ApiRequest::ResolveStreamUrl { track_id: id });
         }
         self.set_status(format!("Queued: {title}"), StatusLevel::Info);
+        self.push_mpris_state();
+    }
+
+    pub fn play_next(&mut self, track: Track) {
+        if self.now_playing.track.is_none() || self.now_playing.queue.is_empty() {
+            self.play_track(track);
+            return;
+        }
+        let title = track.title.clone();
+        let insert_idx = (self.now_playing.queue_index + 1).min(self.now_playing.queue.len());
+        if self.now_playing.shuffle {
+            self.now_playing.original_queue.push(track.clone());
+        }
+        self.now_playing.queue.insert(insert_idx, track);
+        self.replace_prefetched_next();
+        self.set_status(format!("Playing next: {title}"), StatusLevel::Info);
         self.push_mpris_state();
     }
 
@@ -1035,6 +1064,36 @@ mod tests {
         assert_eq!(app.now_playing.source_playlist_next_offset, 0);
     }
 
+    #[test]
+    fn play_next_inserts_track_immediately_after_current() {
+        let (mut app, mut api_rx) = make_app_watching_api();
+        app.play_tracks(vec![track(1), track(2), track(3)], 0);
+        app.now_playing.track = Some(track(1));
+        while api_rx.try_recv().is_ok() {}
+
+        app.play_next(track(99));
+
+        assert_eq!(app.now_playing.queue.len(), 4);
+        assert_eq!(app.now_playing.queue[0].id, 1);
+        assert_eq!(app.now_playing.queue[1].id, 99);
+        assert_eq!(app.now_playing.queue[2].id, 2);
+        assert_eq!(app.now_playing.queue[3].id, 3);
+
+        assert!(matches!(
+            api_rx.try_recv(),
+            Ok(ApiRequest::ResolveStreamUrl { track_id: 99 })
+        ));
+    }
+
+    #[test]
+    fn play_next_when_empty_starts_playback() {
+        let mut app = make_app();
+        app.play_next(track(42));
+        assert_eq!(app.now_playing.queue.len(), 1);
+        assert_eq!(app.now_playing.queue[0].id, 42);
+        assert_eq!(app.now_playing.queue_index, 0);
+    }
+
     // ── Advancing on mpv's own ────────────────────────────────────────────────
 
     #[test]
@@ -1156,6 +1215,26 @@ mod tests {
         let ids_after: Vec<u64> = app.now_playing.queue.iter().map(|t| t.id).collect();
         assert_eq!(ids_before, ids_after);
         assert_eq!(app.queue_cursor, 0);
+    }
+
+    #[test]
+    fn move_queue_track_to_play_next_reorders_and_updates_prefetch() {
+        let (mut app, mut api_rx) = make_app_watching_api();
+        app.play_tracks((1..=5).map(track).collect(), 0);
+        app.focus_queue();
+        let _ = resolved_track_ids(&mut api_rx);
+
+        app.move_queue_track_to_play_next(3);
+
+        assert_eq!(app.now_playing.queue[1].id, 4);
+        assert_eq!(app.queue_cursor, 1);
+        assert!(matches!(
+            api_rx.try_recv(),
+            Ok(ApiRequest::ResolveStreamUrl { track_id: 4 })
+        ));
+
+        app.move_queue_track_to_play_next(1);
+        assert_eq!(app.now_playing.queue[1].id, 4);
     }
 
     // ── Queue removal ─────────────────────────────────────────────────────────

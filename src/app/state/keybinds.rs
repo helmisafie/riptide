@@ -197,6 +197,10 @@ impl KeybindGroup {
                     action: "Add to queue",
                 },
                 Keybind {
+                    key: "P",
+                    action: "Play next",
+                },
+                Keybind {
                     key: "f",
                     action: "Favorite/follow/save",
                 },
@@ -275,6 +279,10 @@ impl KeybindGroup {
                 Keybind {
                     key: "r",
                     action: "Start track radio",
+                },
+                Keybind {
+                    key: "P",
+                    action: "Play next",
                 },
                 Keybind {
                     key: "c",

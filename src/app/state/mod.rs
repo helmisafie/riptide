@@ -2,7 +2,6 @@
 // Copyright (C) 2025 Fezzik the Giant
 
 use crate::api::models::*;
-use crate::playlist::PlaylistDetail;
 use std::cell::Cell;
 use std::collections::HashMap;
 
@@ -11,6 +10,7 @@ mod keybinds;
 mod list;
 mod now_playing;
 mod palette;
+mod search;
 mod sort;
 
 pub use detail::*;
@@ -18,6 +18,7 @@ pub use keybinds::*;
 pub use list::*;
 pub use now_playing::*;
 pub use palette::*;
+pub use search::*;
 pub use sort::*;
 
 // ── Tab ───────────────────────────────────────────────────────────────────────

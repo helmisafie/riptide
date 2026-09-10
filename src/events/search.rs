@@ -6,8 +6,7 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::api::ApiRequest;
-use crate::app::App;
-use crate::search::SearchPane;
+use crate::app::{App, SearchPane};
 
 pub(super) fn handle_search_input(app: &mut App, key: KeyEvent) {
     match key.code {

@@ -64,7 +64,9 @@ const AUTH_BASE: &str = "https://auth.tidal.com/v1/oauth2";
 const CURRENT_AUTH_GENERATION: u32 = 1;
 
 pub fn config_path() -> PathBuf {
-    dirs::config_dir()
+    std::env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
         .unwrap_or_else(|| PathBuf::from("."))
         .join("riptide")
         .join("config.json")

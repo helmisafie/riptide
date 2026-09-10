@@ -17,8 +17,6 @@ mod lastfm;
 mod manifest;
 mod mpris;
 mod player;
-mod playlist;
-mod search;
 mod ui;
 mod update;
 
@@ -91,7 +89,7 @@ fn main() -> Result<()> {
         };
         let env_filter = tracing_subscriber::EnvFilter::new(&directive);
 
-        let _ = tracing_subscriber::fmt()
+        tracing_subscriber::fmt()
             .with_writer(file_appender)
             .with_ansi(false)
             .with_env_filter(env_filter)

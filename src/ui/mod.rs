@@ -13,9 +13,7 @@ use ratatui::{
 };
 
 use crate::api::models::Track;
-use crate::app::{App, ArtistDetailFocus, KeybindGroup, StatusLevel, Tab, View};
-use crate::playlist::PlaylistDetailFocus;
-use crate::search::SearchPane;
+use crate::app::{App, ArtistDetailFocus, KeybindGroup, PlaylistDetailFocus, SearchPane, StatusLevel, Tab, View};
 
 mod album_detail;
 mod art;

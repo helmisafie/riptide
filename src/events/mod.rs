@@ -212,13 +212,10 @@ fn handle_key(app: &mut App, key: KeyEvent) {
         return;
     }
 
-    // Open search modal when on Search tab
-    if app.current_tab == Tab::Search {
-        if key.code == KeyCode::Char('/') {
-            app.search.modal_open = true;
-            app.search.query.clear();
-            return;
-        }
+    if app.current_tab == Tab::Search && key.code == KeyCode::Char('/') {
+        app.search.modal_open = true;
+        app.search.query.clear();
+        return;
     }
 
     if !handle_global_key(app, key) {

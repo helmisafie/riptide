@@ -1,53 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2025 Fezzik the Giant
 
+use super::ListViewport;
 use crate::api::models::*;
-use std::cell::Cell;
-
-#[derive(Default)]
-pub(super) struct ListViewport {
-    offset: Cell<usize>,
-    capacity: Cell<usize>,
-}
-
-impl ListViewport {
-    pub fn offset(&self, selected: usize, len: usize, height: usize) -> usize {
-        self.capacity.set(height);
-        if height == 0 || len <= height {
-            self.offset.set(0);
-            return 0;
-        }
-
-        let selected = selected.min(len - 1);
-        let mut offset = self.offset.get().min(len - height);
-        if selected < offset {
-            offset = selected;
-        } else if selected >= offset + height {
-            offset = selected + 1 - height;
-        }
-        offset = offset.min(len - height);
-        self.offset.set(offset);
-        offset
-    }
-
-    pub fn reset(&self) {
-        self.offset.set(0);
-    }
-
-    pub(super) fn page_size(&self) -> usize {
-        self.capacity.get().saturating_sub(1).max(1)
-    }
-
-    pub(super) fn previous_page(&self, selected: usize, len: usize) -> usize {
-        selected
-            .saturating_sub(self.page_size())
-            .min(len.saturating_sub(1))
-    }
-
-    pub(super) fn next_page(&self, selected: usize, len: usize) -> usize {
-        (selected + self.page_size()).min(len.saturating_sub(1))
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SearchPane {
@@ -106,7 +61,6 @@ impl Default for SearchState {
 }
 
 impl SearchState {
-    /// True when any pane has something to browse.
     pub fn has_results(&self) -> bool {
         !self.tracks.is_empty() || !self.artists.is_empty() || !self.playlists.is_empty()
     }

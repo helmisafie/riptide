@@ -6,9 +6,7 @@
 use crossterm::event::{KeyCode, KeyEvent};
 
 use super::*;
-use crate::app::{App, ArtistDetailFocus, HomeSectionFocus, Tab, View};
-use crate::playlist::PlaylistDetailFocus;
-use crate::search::SearchPane;
+use crate::app::{App, ArtistDetailFocus, HomeSectionFocus, PlaylistDetailFocus, SearchPane, Tab, View};
 
 pub(super) fn handle_navigation(app: &mut App, key: KeyEvent) {
     // First pass: mutate the view's own list state (navigation within a detail view).

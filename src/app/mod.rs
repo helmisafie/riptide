@@ -10,7 +10,6 @@ mod state;
 #[cfg(test)]
 pub(crate) mod test_support;
 
-pub use crate::playlist::{PlaylistDetail, PlaylistDetailFocus};
 pub use state::*;
 
 use crate::api::ApiRequest;
@@ -18,7 +17,6 @@ use crate::api::models::{Album, Artist, Playlist, Track};
 use crate::lastfm::LastfmCmd;
 use crate::mpris::MprisState;
 use crate::player::PlayerCmd;
-use crate::search::SearchState;
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet, VecDeque};
 use tokio::sync::{mpsc, watch};

@@ -133,6 +133,10 @@ impl KeybindGroup {
                     action: "Toggle fullscreen art",
                 },
                 Keybind {
+                    key: "Shift+L",
+                    action: "Toggle full lyrics",
+                },
+                Keybind {
                     key: "Space",
                     action: "Play/Pause",
                 },

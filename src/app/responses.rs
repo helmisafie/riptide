@@ -584,6 +584,7 @@ impl App {
                         self.now_playing.lyrics_synced.clear();
                         self.now_playing.lyrics_plain.clear();
                         self.now_playing.lyrics_loading = true;
+                        self.lyrics_scroll = None;
                         // Paths that already made this track current — `play_from_queue`,
                         // removing the playing row — fetched metadata then. Doing it
                         // again here would wipe presentation art that has already landed.

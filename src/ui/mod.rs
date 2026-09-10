@@ -13,7 +13,9 @@ use ratatui::{
 };
 
 use crate::api::models::Track;
-use crate::app::{App, ArtistDetailFocus, KeybindGroup, PlaylistDetailFocus, SearchPane, StatusLevel, Tab, View};
+use crate::app::{
+    App, ArtistDetailFocus, KeybindGroup, PlaylistDetailFocus, SearchPane, StatusLevel, Tab, View,
+};
 
 mod album_detail;
 mod art;
@@ -23,6 +25,7 @@ mod footer;
 mod home;
 mod image;
 mod lists;
+mod lyrics;
 mod now_playing;
 mod overlays;
 mod playlist_detail;
@@ -40,6 +43,7 @@ use footer::*;
 use home::*;
 use image::*;
 use lists::*;
+use lyrics::*;
 use now_playing::*;
 use overlays::*;
 use playlist_detail::*;
@@ -61,6 +65,12 @@ pub fn draw(f: &mut Frame, app: &App) {
 
     if app.art_fullscreen {
         render_art_view(f, app, area);
+        render_overlays(f, app, area);
+        return;
+    }
+
+    if app.lyrics_view {
+        render_lyrics_view(f, app, area);
         render_overlays(f, app, area);
         return;
     }

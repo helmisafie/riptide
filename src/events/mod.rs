@@ -197,6 +197,11 @@ fn handle_key(app: &mut App, key: KeyEvent) {
         return;
     }
 
+    if app.lyrics_view {
+        handle_lyrics_input(app, key);
+        return;
+    }
+
     if app.queue_focused {
         handle_queue_input(app, key);
         return;
@@ -220,6 +225,20 @@ fn handle_key(app: &mut App, key: KeyEvent) {
 
     if !handle_global_key(app, key) {
         handle_navigation(app, key);
+    }
+}
+
+fn handle_lyrics_input(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Esc | KeyCode::Char('L') => app.exit_lyrics_view(),
+        KeyCode::Up => app.lyrics_scroll_by(-1),
+        KeyCode::Down => app.lyrics_scroll_by(1),
+        KeyCode::PageUp => app.lyrics_scroll_by(-8),
+        KeyCode::PageDown => app.lyrics_scroll_by(8),
+        KeyCode::Char('c') | KeyCode::Char('C') => app.lyrics_resync(),
+        _ => {
+            handle_global_key(app, key);
+        }
     }
 }
 

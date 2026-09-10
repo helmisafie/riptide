@@ -51,6 +51,7 @@ impl CommandState {
         "playlists",
         "search",
         "art",
+        "lyrics",
     ];
 
     pub fn matches(&self) -> Vec<&'static str> {

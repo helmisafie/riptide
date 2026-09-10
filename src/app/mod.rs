@@ -45,6 +45,8 @@ pub struct App {
     pub current_tab: Tab,
     pub view_stack: Vec<View>,
     pub art_fullscreen: bool,
+    pub lyrics_view: bool,
+    pub lyrics_scroll: Option<usize>,
 
     pub home_recommended: HomeSection<Track>,
     pub home_recommended_seed: Option<String>,
@@ -155,6 +157,8 @@ impl App {
             current_tab: Tab::Home,
             view_stack: Vec::new(),
             art_fullscreen: false,
+            lyrics_view: false,
+            lyrics_scroll: None,
             home_recommended: HomeSection::default(),
             home_recommended_seed: None,
             home_recommended_cover: None,

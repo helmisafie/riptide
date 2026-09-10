@@ -46,6 +46,9 @@ pub(super) fn handle_global_key(app: &mut App, key: KeyEvent) -> bool {
         KeyCode::Char('A') | KeyCode::Char('a') if key.modifiers.contains(KeyModifiers::SHIFT) => {
             app.toggle_art_fullscreen();
         }
+        KeyCode::Char('L') | KeyCode::Char('l') if key.modifiers.contains(KeyModifiers::SHIFT) => {
+            app.toggle_lyrics_view();
+        }
         KeyCode::Char('q') | KeyCode::Char('Q') => {
             app.should_quit = true;
         }
@@ -64,11 +67,19 @@ pub(super) fn handle_global_key(app: &mut App, key: KeyEvent) -> bool {
         KeyCode::Tab | KeyCode::BackTab | KeyCode::Esc if app.art_fullscreen => {
             app.exit_art_fullscreen();
         }
+        KeyCode::Tab | KeyCode::BackTab | KeyCode::Esc if app.lyrics_view => {
+            app.exit_lyrics_view();
+        }
         // Not while the queue has focus: the filter narrows the tab's list, which
         // is not what the user is looking at. Not in fullscreen art either — the
         // filter overlay is hidden there, so it would silently swallow Tab/Esc
         // (which should exit fullscreen) into an invisible filter box.
-        KeyCode::Char('/') if app.filterable_tab() && !app.queue_focused && !app.art_fullscreen => {
+        KeyCode::Char('/')
+            if app.filterable_tab()
+                && !app.queue_focused
+                && !app.art_fullscreen
+                && !app.lyrics_view =>
+        {
             app.filter_active = true;
         }
         KeyCode::Tab => {
@@ -248,6 +259,41 @@ mod tests {
         let mut t = test_app();
         t.app.current_tab = Tab::Albums;
         t.app.art_fullscreen = true;
+        assert!(t.app.filterable_tab());
+
+        handle_global_key(
+            &mut t.app,
+            KeyEvent::new(KeyCode::Char('/'), KeyModifiers::NONE),
+        );
+
+        assert!(!t.app.filter_active);
+    }
+
+    #[test]
+    fn shift_l_toggles_lyrics_view_without_changing_tabs() {
+        let mut t = test_app();
+        t.app.current_tab = Tab::Favorites;
+        assert!(!t.app.lyrics_view);
+
+        assert!(handle_global_key(
+            &mut t.app,
+            KeyEvent::new(KeyCode::Char('L'), KeyModifiers::SHIFT),
+        ));
+        assert!(t.app.lyrics_view);
+        assert_eq!(t.app.current_tab, Tab::Favorites);
+
+        assert!(handle_global_key(
+            &mut t.app,
+            KeyEvent::new(KeyCode::Char('L'), KeyModifiers::SHIFT),
+        ));
+        assert!(!t.app.lyrics_view);
+    }
+
+    #[test]
+    fn slash_does_not_open_filter_in_lyrics_view() {
+        let mut t = test_app();
+        t.app.current_tab = Tab::Favorites;
+        t.app.lyrics_view = true;
         assert!(t.app.filterable_tab());
 
         handle_global_key(

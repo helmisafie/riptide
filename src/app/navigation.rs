@@ -38,6 +38,8 @@ impl App {
     pub fn set_tab(&mut self, tab: Tab) {
         self.current_tab = tab;
         self.art_fullscreen = false;
+        self.lyrics_view = false;
+        self.lyrics_scroll = None;
         self.view_stack.clear();
         self.on_tab_entered();
     }
@@ -48,6 +50,7 @@ impl App {
             return;
         }
         self.art_fullscreen = true;
+        self.lyrics_view = false;
         self.fetch_presentation_art();
     }
 
@@ -60,6 +63,72 @@ impl App {
             self.exit_art_fullscreen();
         } else {
             self.enter_art_fullscreen();
+        }
+    }
+
+    pub fn enter_lyrics_view(&mut self) {
+        if self.lyrics_view {
+            return;
+        }
+        self.lyrics_view = true;
+        self.art_fullscreen = false;
+        self.lyrics_scroll = None;
+        if self.now_playing.lyrics_synced.is_empty()
+            && self.now_playing.lyrics_plain.is_empty()
+            && !self.now_playing.lyrics_loading
+        {
+            self.fetch_lyrics();
+        }
+    }
+
+    pub fn exit_lyrics_view(&mut self) {
+        self.lyrics_view = false;
+        self.lyrics_scroll = None;
+    }
+
+    pub fn toggle_lyrics_view(&mut self) {
+        if self.lyrics_view {
+            self.exit_lyrics_view();
+        } else {
+            self.enter_lyrics_view();
+        }
+    }
+
+    pub fn lyrics_scroll_by(&mut self, delta: isize) {
+        let total = self.lyrics_line_count();
+        if total == 0 {
+            return;
+        }
+        let current = self
+            .lyrics_scroll
+            .unwrap_or_else(|| self.current_lyrics_line()) as isize;
+        self.lyrics_scroll = Some((current + delta).clamp(0, total as isize - 1) as usize);
+    }
+
+    pub fn lyrics_resync(&mut self) {
+        self.lyrics_scroll = None;
+    }
+
+    pub fn current_lyrics_line(&self) -> usize {
+        if !self.now_playing.lyrics_synced.is_empty() {
+            let pos = self.now_playing.position;
+            self.now_playing
+                .lyrics_synced
+                .partition_point(|(t, _)| *t <= pos)
+                .saturating_sub(1)
+        } else if !self.now_playing.lyrics_plain.is_empty() {
+            let len = self.now_playing.lyrics_plain.len();
+            ((self.now_playing.progress_ratio() * len as f64) as usize).min(len.saturating_sub(1))
+        } else {
+            0
+        }
+    }
+
+    pub fn lyrics_line_count(&self) -> usize {
+        if !self.now_playing.lyrics_synced.is_empty() {
+            self.now_playing.lyrics_synced.len()
+        } else {
+            self.now_playing.lyrics_plain.len()
         }
     }
 
@@ -227,7 +296,9 @@ impl App {
 
     pub fn home_section(&self) -> &HomeSection<Playlist> {
         match self.home_section_focus {
-            HomeSectionFocus::Recommended | HomeSectionFocus::NewReleases => &self.home_new_releases,
+            HomeSectionFocus::Recommended | HomeSectionFocus::NewReleases => {
+                &self.home_new_releases
+            }
             HomeSectionFocus::DailyMixes => &self.home_daily_mixes,
             HomeSectionFocus::DiscoveryMixes => &self.home_discovery_mixes,
             HomeSectionFocus::Genres => &self.home_genres,
@@ -574,7 +645,9 @@ mod tests {
         ));
 
         let cat1 = &crate::api::models::GENRE_CATEGORIES[1];
-        t.app.genre_playlists_cache.insert(cat1.path.to_string(), vec![mix(10)]);
+        t.app
+            .genre_playlists_cache
+            .insert(cat1.path.to_string(), vec![mix(10)]);
         t.app.prev_genre();
         t.drain_api();
         t.app.next_genre();
@@ -670,8 +743,14 @@ mod tests {
 
         assert!(!t.app.queue_focused);
         assert!(matches!(t.app.view_stack.last(), Some(View::AlbumDetail(d)) if d.album.id == 2));
-        assert!(matches!(t.api_rx.try_recv(), Ok(ApiRequest::LoadAlbum { album_id: 2 })));
-        assert!(matches!(t.api_rx.try_recv(), Ok(ApiRequest::LoadAlbumTracks { album_id: 2 })));
+        assert!(matches!(
+            t.api_rx.try_recv(),
+            Ok(ApiRequest::LoadAlbum { album_id: 2 })
+        ));
+        assert!(matches!(
+            t.api_rx.try_recv(),
+            Ok(ApiRequest::LoadAlbumTracks { album_id: 2 })
+        ));
 
         // Attempting to go to the same album again does not push a duplicate
         t.app.go_to_album_from_track(&trk);
@@ -685,6 +764,68 @@ mod tests {
         trk.album.id = 0;
         t.app.go_to_album_from_track(&trk);
         assert!(t.app.view_stack.is_empty());
-        assert!(matches!(t.app.status, Some((_, crate::app::StatusLevel::Error, _))));
+        assert!(matches!(
+            t.app.status,
+            Some((_, crate::app::StatusLevel::Error, _))
+        ));
+    }
+
+    #[test]
+    fn lyrics_view_entry_exit_and_tab_dismiss() {
+        let mut t = test_app();
+        t.drain_api();
+        let trk = track();
+        t.app.now_playing.track = Some(trk.clone());
+
+        t.app.enter_lyrics_view();
+        assert!(t.app.lyrics_view);
+        assert_eq!(t.app.lyrics_scroll, None);
+        assert!(matches!(
+            t.api_rx.try_recv(),
+            Ok(ApiRequest::FetchLyrics { track_id: 1 })
+        ));
+
+        t.app.toggle_lyrics_view();
+        assert!(!t.app.lyrics_view);
+
+        t.app.enter_lyrics_view();
+        assert!(t.app.lyrics_view);
+        t.app.set_tab(Tab::Albums);
+        assert!(!t.app.lyrics_view);
+    }
+
+    #[test]
+    fn lyrics_manual_scroll_and_resync() {
+        let mut t = test_app();
+        t.app.now_playing.lyrics_synced = vec![
+            (0.0, "line 0".to_string()),
+            (5.0, "line 1".to_string()),
+            (10.0, "line 2".to_string()),
+            (15.0, "line 3".to_string()),
+            (20.0, "line 4".to_string()),
+        ];
+        t.app.now_playing.position = 0.0;
+        assert_eq!(t.app.current_lyrics_line(), 0);
+
+        t.app.lyrics_scroll_by(1);
+        assert_eq!(t.app.lyrics_scroll, Some(1));
+
+        t.app.lyrics_scroll_by(1);
+        assert_eq!(t.app.lyrics_scroll, Some(2));
+
+        t.app.lyrics_scroll_by(-1);
+        assert_eq!(t.app.lyrics_scroll, Some(1));
+
+        t.app.lyrics_scroll_by(10);
+        assert_eq!(t.app.lyrics_scroll, Some(4));
+
+        t.app.lyrics_scroll_by(-2);
+        assert_eq!(t.app.lyrics_scroll, Some(2));
+
+        t.app.lyrics_resync();
+        assert_eq!(t.app.lyrics_scroll, None);
+
+        t.app.now_playing.position = 12.0;
+        assert_eq!(t.app.current_lyrics_line(), 2);
     }
 }

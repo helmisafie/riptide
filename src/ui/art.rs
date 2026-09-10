@@ -154,7 +154,7 @@ fn progress_rail(app: &App, width: u16) -> Paragraph<'static> {
     ]))
 }
 
-fn progress_columns(width: u16, ratio: f64) -> u16 {
+pub(super) fn progress_columns(width: u16, ratio: f64) -> u16 {
     ((width as f64 * ratio.clamp(0.0, 1.0)) as u16).min(width)
 }
 

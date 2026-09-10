@@ -116,7 +116,7 @@ impl App {
         }
     }
 
-    fn fetch_lyrics(&mut self) {
+    pub(crate) fn fetch_lyrics(&mut self) {
         let Some(track) = &self.now_playing.track else {
             return;
         };

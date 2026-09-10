@@ -96,6 +96,9 @@ pub(super) fn execute_command(app: &mut App, cmd: &str) {
         "art" => {
             app.enter_art_fullscreen();
         }
+        "lyrics" => {
+            app.enter_lyrics_view();
+        }
         _ => {}
     }
 }

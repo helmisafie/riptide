@@ -60,22 +60,12 @@ impl LastfmWorker {
     pub async fn run(mut self) {
         if !self.config.enabled {
             debug!("Last.fm scrobbling disabled");
-            loop {
-                tokio::select! {
-                    _ = self.cmd_rx.recv() => {},
-                    _ = self.player_evt_rx.recv() => {},
-                }
-            }
+            return;
         }
 
         if self.client.is_none() {
             warn!("Last.fm client not initialized - missing session key or API credentials");
-            loop {
-                tokio::select! {
-                    _ = self.cmd_rx.recv() => {},
-                    _ = self.player_evt_rx.recv() => {},
-                }
-            }
+            return;
         }
 
         debug!("Last.fm scrobbler started");
@@ -248,3 +238,39 @@ impl LastfmWorker {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn disabled_worker_exits_promptly() {
+        let (_cmd_tx, cmd_rx) = mpsc::unbounded_channel();
+        let (_player_tx, player_rx) = mpsc::unbounded_channel();
+        let (evt_tx, _evt_rx) = mpsc::unbounded_channel();
+        let config = LastfmConfig {
+            enabled: false,
+            ..Default::default()
+        };
+        let worker = LastfmWorker::new(config, cmd_rx, player_rx, evt_tx);
+
+        let res = tokio::time::timeout(Duration::from_millis(500), worker.run()).await;
+        assert!(res.is_ok());
+    }
+
+    #[tokio::test]
+    async fn uninitialized_client_worker_exits_promptly() {
+        let (_cmd_tx, cmd_rx) = mpsc::unbounded_channel();
+        let (_player_tx, player_rx) = mpsc::unbounded_channel();
+        let (evt_tx, _evt_rx) = mpsc::unbounded_channel();
+        let config = LastfmConfig {
+            enabled: true,
+            ..Default::default()
+        };
+        let worker = LastfmWorker::new(config, cmd_rx, player_rx, evt_tx);
+
+        let res = tokio::time::timeout(Duration::from_millis(500), worker.run()).await;
+        assert!(res.is_ok());
+    }
+}
+

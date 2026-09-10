@@ -133,6 +133,19 @@ pub(super) fn handle_global_key(app: &mut App, key: KeyEvent) -> bool {
                 );
             }
         }
+        KeyCode::Char('G') => {
+            if app.art_fullscreen {
+                return true;
+            }
+            if let Some(track) = get_selected_track(app) {
+                app.go_to_album_from_track(&track);
+            } else {
+                app.set_status(
+                    "No track selected".to_string(),
+                    crate::app::StatusLevel::Error,
+                );
+            }
+        }
         KeyCode::Char('U') => {
             use crate::app::UpdateStatus;
             if app.update.status == UpdateStatus::Done {
@@ -243,5 +256,39 @@ mod tests {
         );
 
         assert!(!t.app.filter_active);
+    }
+
+    #[test]
+    fn g_opens_album_for_selected_track() {
+        use crate::api::models::{Album, Track};
+        let mut t = test_app();
+        t.app.current_tab = Tab::Favorites;
+        t.app.favorites.items = vec![Track {
+            id: 10,
+            title: "Song".to_string(),
+            duration: 180,
+            artist: None,
+            artists: Vec::new(),
+            album: Album {
+                id: 42,
+                title: "Great Album".to_string(),
+                number_of_tracks: None,
+                release_date: None,
+                cover: None,
+                artist: None,
+                media_metadata: None,
+                added_at: None,
+                album_type: None,
+            },
+            media_metadata: None,
+            added_at: None,
+        }];
+        t.app.favorites.selected = 0;
+
+        assert!(handle_global_key(
+            &mut t.app,
+            KeyEvent::new(KeyCode::Char('G'), KeyModifiers::SHIFT),
+        ));
+        assert!(matches!(t.app.view_stack.last(), Some(View::AlbumDetail(d)) if d.album.id == 42));
     }
 }

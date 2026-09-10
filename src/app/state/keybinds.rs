@@ -213,6 +213,10 @@ impl KeybindGroup {
                     action: "Go to artist",
                 },
                 Keybind {
+                    key: "G",
+                    action: "Go to album",
+                },
+                Keybind {
                     key: "s",
                     action: "Sort",
                 },
@@ -259,6 +263,18 @@ impl KeybindGroup {
                 Keybind {
                     key: "d",
                     action: "Remove track",
+                },
+                Keybind {
+                    key: "g",
+                    action: "Go to artist",
+                },
+                Keybind {
+                    key: "G",
+                    action: "Go to album",
+                },
+                Keybind {
+                    key: "r",
+                    action: "Start track radio",
                 },
                 Keybind {
                     key: "c",

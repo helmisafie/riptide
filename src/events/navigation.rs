@@ -713,7 +713,11 @@ pub(super) fn handle_navigation(app: &mut App, key: KeyEvent) {
                     app.start_artist_radio(&artist);
                 }
             }
-            _ => {}
+            _ => {
+                if let Some(track) = app.now_playing.track.clone() {
+                    app.start_track_radio(&track);
+                }
+            }
         },
         KeyCode::Char('R') => {
             let track_opt = if app.current_tab == Tab::Home {
@@ -758,11 +762,17 @@ pub(super) fn get_selected_track(app: &App) -> Option<crate::api::models::Track>
     if let Some(View::ArtistDetail(detail)) = app.view_stack.last() {
         return detail.tracks.selected_item().cloned();
     }
+    if let Some(View::AlbumDetail(detail)) = app.view_stack.last() {
+        return detail.tracks.selected_item().cloned();
+    }
     if app.current_tab == Tab::Home && app.home_section_focus == HomeSectionFocus::Recommended {
         return app.home_recommended.selected_item().cloned();
     }
     if app.current_tab == Tab::Favorites {
         return app.favorites.selected_item().cloned();
+    }
+    if app.current_tab == Tab::Search && app.search.pane == SearchPane::Tracks {
+        return app.search.tracks.get(app.search.track_sel).cloned();
     }
     if app.now_playing.queue_index < app.now_playing.queue.len() {
         return Some(app.now_playing.queue[app.now_playing.queue_index].clone());

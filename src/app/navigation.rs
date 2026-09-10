@@ -135,6 +135,7 @@ impl App {
 
     pub fn open_album(&mut self, album: Album) {
         let album_id = album.id;
+        self.queue_focused = false;
         self.view_stack.push(View::AlbumDetail(AlbumDetail {
             album,
             tracks: StatefulList::default(),
@@ -395,6 +396,28 @@ impl App {
                 .send(ApiRequest::SearchArtistByName { query: name });
         }
     }
+
+    pub fn go_to_album_from_track(&mut self, track: &crate::api::models::Track) {
+        if track.album.id == 0 {
+            self.set_status(
+                "No album information available".to_string(),
+                crate::app::StatusLevel::Error,
+            );
+            return;
+        }
+
+        if let Some(View::AlbumDetail(detail)) = self.view_stack.last() {
+            if detail.album.id == track.album.id {
+                self.set_status(
+                    format!("Already viewing \"{}\"", detail.album.title),
+                    crate::app::StatusLevel::Info,
+                );
+                return;
+            }
+        }
+
+        self.open_album(track.album.clone());
+    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -635,5 +658,33 @@ mod tests {
             t.api_rx.try_recv(),
             Ok(ApiRequest::LoadHomeRecommendations { seed_id: 20, .. })
         ));
+    }
+
+    #[test]
+    fn go_to_album_from_track_pushes_album_detail() {
+        let mut t = test_app();
+        t.drain_api();
+        t.app.queue_focused = true;
+        let trk = track(); // has album id: 2
+        t.app.go_to_album_from_track(&trk);
+
+        assert!(!t.app.queue_focused);
+        assert!(matches!(t.app.view_stack.last(), Some(View::AlbumDetail(d)) if d.album.id == 2));
+        assert!(matches!(t.api_rx.try_recv(), Ok(ApiRequest::LoadAlbum { album_id: 2 })));
+        assert!(matches!(t.api_rx.try_recv(), Ok(ApiRequest::LoadAlbumTracks { album_id: 2 })));
+
+        // Attempting to go to the same album again does not push a duplicate
+        t.app.go_to_album_from_track(&trk);
+        assert_eq!(t.app.view_stack.len(), 1);
+    }
+
+    #[test]
+    fn go_to_album_from_track_rejects_missing_album_id() {
+        let mut t = test_app();
+        let mut trk = track();
+        trk.album.id = 0;
+        t.app.go_to_album_from_track(&trk);
+        assert!(t.app.view_stack.is_empty());
+        assert!(matches!(t.app.status, Some((_, crate::app::StatusLevel::Error, _))));
     }
 }

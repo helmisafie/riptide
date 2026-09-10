@@ -78,6 +78,26 @@ pub(super) fn handle_queue_input(app: &mut App, key: KeyEvent) {
                 );
             }
         }
+        KeyCode::Char('G') => {
+            if let Some(track) = app.now_playing.queue.get(app.queue_cursor).cloned() {
+                app.go_to_album_from_track(&track);
+            } else {
+                app.set_status(
+                    "No track selected".to_string(),
+                    crate::app::StatusLevel::Error,
+                );
+            }
+        }
+        KeyCode::Char('r') => {
+            if let Some(track) = app.now_playing.queue.get(app.queue_cursor).cloned() {
+                app.start_track_radio(&track);
+            } else {
+                app.set_status(
+                    "No track selected".to_string(),
+                    crate::app::StatusLevel::Error,
+                );
+            }
+        }
         // Anything the queue doesn't claim falls through to the global bindings
         // so transport, volume, tabs and help keep working in here.
         _ => {

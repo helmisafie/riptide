@@ -11,7 +11,7 @@ use anyhow::{Context, Result, bail};
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
 
-const GITHUB_REPO: &str = "fezzik-the-giant/riptide";
+const GITHUB_REPO: &str = "helmisafie/riptide";
 
 /// How the running binary was installed. Self-update only applies to
 /// [`InstallMethod::Script`] — anything else has its own package manager.

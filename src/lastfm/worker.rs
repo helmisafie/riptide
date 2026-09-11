@@ -132,13 +132,12 @@ impl LastfmWorker {
                 self.last_scrobble_track_id = None;
                 self.is_paused = false;
 
-                if let Some(client) = &self.client {
-                    if let Err(e) = client
+                if let Some(client) = &self.client
+                    && let Err(e) = client
                         .update_now_playing(&artist, &track_name, album.as_deref())
                         .await
-                    {
-                        warn!("Failed to update now playing: {}", e);
-                    }
+                {
+                    warn!("Failed to update now playing: {}", e);
                 }
             }
             LastfmCmd::Pause => {
@@ -159,11 +158,7 @@ impl LastfmWorker {
                 self.last_scrobble_track_id = None;
             }
             PlayerEvent::Paused(paused) => {
-                if paused {
-                    self.is_paused = true;
-                } else {
-                    self.is_paused = false;
-                }
+                self.is_paused = paused;
             }
             _ => {}
         }

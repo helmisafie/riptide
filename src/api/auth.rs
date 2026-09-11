@@ -88,6 +88,13 @@ pub fn save_config(config: &Config) -> Result<()> {
     Ok(())
 }
 
+fn current_epoch_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
 fn is_token_valid(config: &Config) -> bool {
     let Some(ref token) = config.access_token else {
         return false;
@@ -98,10 +105,10 @@ fn is_token_valid(config: &Config) -> bool {
     let Some(ref expires_at) = config.expires_at else {
         return false;
     };
-    let Ok(expiry) = chrono::DateTime::parse_from_rfc3339(expires_at) else {
+    let Ok(expiry) = expires_at.parse::<u64>() else {
         return false;
     };
-    expiry > chrono::Utc::now() + chrono::Duration::seconds(60)
+    expiry > current_epoch_secs() + 60
 }
 
 pub fn ensure_auth(config: &mut Config) -> Result<()> {
@@ -241,7 +248,10 @@ pub fn run_device_auth_flow(config: &mut Config) -> Result<()> {
     println!();
     println!("Waiting for authorization…");
 
-    let _ = open::that(&auth.verification_uri_complete);
+    #[cfg(target_os = "macos")]
+    let _ = std::process::Command::new("open").arg(&auth.verification_uri_complete).spawn();
+    #[cfg(not(target_os = "macos"))]
+    let _ = std::process::Command::new("xdg-open").arg(&auth.verification_uri_complete).spawn();
 
     let interval = std::time::Duration::from_secs(auth.interval as u64);
 
@@ -286,12 +296,12 @@ pub fn run_device_auth_flow(config: &mut Config) -> Result<()> {
     }
 }
 fn apply_token(config: &mut Config, token: TokenResponse) {
-    let expires_at = chrono::Utc::now() + chrono::Duration::seconds(token.expires_in as i64);
+    let expires_at = current_epoch_secs() + token.expires_in as u64;
     config.access_token = Some(token.access_token);
     if let Some(rt) = token.refresh_token {
         config.refresh_token = Some(rt);
     }
-    config.expires_at = Some(expires_at.to_rfc3339());
+    config.expires_at = Some(expires_at.to_string());
     if let Some(user) = token.user {
         config.user_id = Some(user.user_id);
         if !user.country_code.is_empty() {

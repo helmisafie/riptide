@@ -49,17 +49,13 @@ impl App {
         }
     }
 
-    pub fn switch_genre(&mut self, index: usize) {
-        self.load_genre_playlists(index);
-    }
-
     pub fn next_genre(&mut self) {
         let count = crate::api::models::GENRE_CATEGORIES.len();
         if count == 0 {
             return;
         }
         let next_idx = (self.home_genre_index + 1) % count;
-        self.switch_genre(next_idx);
+        self.load_genre_playlists(next_idx);
     }
 
     pub fn prev_genre(&mut self) {
@@ -72,7 +68,7 @@ impl App {
         } else {
             self.home_genre_index - 1
         };
-        self.switch_genre(prev_idx);
+        self.load_genre_playlists(prev_idx);
     }
 
     pub fn seed_recommendations_from_track(&mut self, track: &Track) {

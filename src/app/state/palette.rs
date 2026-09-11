@@ -25,20 +25,11 @@ impl Default for ArtistSelection {
 
 // ── Command palette ───────────────────────────────────────────────────────────
 
+#[derive(Default)]
 pub struct CommandState {
     pub active: bool,
     pub input: String,
     pub selected: usize,
-}
-
-impl Default for CommandState {
-    fn default() -> Self {
-        Self {
-            active: false,
-            input: String::new(),
-            selected: 0,
-        }
-    }
 }
 
 impl CommandState {

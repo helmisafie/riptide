@@ -6,6 +6,11 @@ use crate::api::models::*;
 use crate::api::{ApiRequest, ApiResponse};
 use crate::player::{PlayerCmd, PlayerEvent};
 
+fn deduplicate_by_id<T, K: std::hash::Hash + Eq>(items: Vec<T>, mut key: impl FnMut(&T) -> K) -> Vec<T> {
+    let mut seen = std::collections::HashSet::new();
+    items.into_iter().filter(|item| seen.insert(key(item))).collect()
+}
+
 impl App {
     pub fn handle_api_response(&mut self, resp: ApiResponse) {
         match resp {
@@ -67,8 +72,7 @@ impl App {
                 // send playback into a restart loop. The albums path already
                 // collapses its collection the same way.
                 let received = items.len();
-                let mut seen = std::collections::HashSet::new();
-                let items: Vec<Track> = items.into_iter().filter(|t| seen.insert(t.id)).collect();
+                let items = deduplicate_by_id(items, |t| t.id);
                 if items.len() < received {
                     tracing::warn!(
                         "Tidal returned {} duplicate favourite track entries ({} unique of {})",

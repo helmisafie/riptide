@@ -48,6 +48,7 @@ impl CommandState {
         "autoplay",
         "autoplay:off",
         "autoplay:on",
+        "seek",
     ];
 
     pub fn matches(&self) -> Vec<&'static str> {

@@ -597,6 +597,28 @@ impl App {
         self.push_mpris_state();
     }
 
+    pub fn seek(&mut self, input: &str) {
+        if !self.now_playing.active {
+            self.set_status("No track playing".to_string(), crate::app::StatusLevel::Error);
+            return;
+        }
+        if let Some(target) = parse_seek_target(input, self.now_playing.position, self.now_playing.duration) {
+            self.seek_to_secs(target);
+            let s = target as u32;
+            let time = if s >= 3600 {
+                format!("{}:{:02}:{:02}", s / 3600, (s % 3600) / 60, s % 60)
+            } else {
+                format!("{}:{:02}", s / 60, s % 60)
+            };
+            self.set_status(format!("Seek to {time}"), crate::app::StatusLevel::Info);
+        } else {
+            self.set_status(
+                "Invalid seek target (use e.g. 1:30, 50%, +10)".to_string(),
+                crate::app::StatusLevel::Error,
+            );
+        }
+    }
+
     pub fn restore_session(&mut self) {
         let Some(session) = crate::app::PlaybackSession::load() else {
             return;
@@ -649,11 +671,44 @@ impl App {
     }
 }
 
+pub(crate) fn parse_seek_target(input: &str, position: f64, duration: f64) -> Option<f64> {
+    let s = input.trim();
+    if s.is_empty() {
+        return None;
+    }
+    if let Some(pct) = s.strip_suffix('%') {
+        let p = pct.trim().parse::<f64>().ok()?;
+        return Some((duration * (p / 100.0)).clamp(0.0, duration.max(0.0)));
+    }
+    let (is_relative, sign, rest) = if let Some(r) = s.strip_prefix('+') {
+        (true, 1.0, r)
+    } else if let Some(r) = s.strip_prefix('-') {
+        (true, -1.0, r)
+    } else {
+        (false, 1.0, s)
+    };
+    let rest = rest.trim().trim_end_matches('s').trim();
+    let secs = rest.split(':').try_fold(0.0, |acc, part| {
+        let val: f64 = part.trim().parse().ok()?;
+        if val < 0.0 {
+            return None;
+        }
+        Some(acc * 60.0 + val)
+    })?;
+    let target = if is_relative {
+        position + sign * secs
+    } else {
+        secs
+    };
+    let max_dur = if duration > 0.0 { duration } else { f64::MAX };
+    Some(target.clamp(0.0, max_dur))
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
-    use super::App;
+    use super::{parse_seek_target, App};
     use crate::api::ApiRequest;
     use crate::api::models::Track;
     use crate::app::test_support::track;
@@ -1964,4 +2019,30 @@ mod tests {
         app.play_tracks(vec![track(1), track(2)], 0);
         assert!(app.resume_pending.is_none());
     }
+
+    #[test]
+    fn parse_seek_target_handles_formats_and_bounds() {
+        assert_eq!(parse_seek_target("1:30", 0.0, 200.0), Some(90.0));
+        assert_eq!(parse_seek_target("01:02:03", 0.0, 5000.0), Some(3723.0));
+        assert_eq!(parse_seek_target("50%", 0.0, 200.0), Some(100.0));
+        assert_eq!(parse_seek_target("+15", 30.0, 200.0), Some(45.0));
+        assert_eq!(parse_seek_target("-20", 30.0, 200.0), Some(10.0));
+        assert_eq!(parse_seek_target("-50", 30.0, 200.0), Some(0.0));
+        assert_eq!(parse_seek_target("+500", 30.0, 200.0), Some(200.0));
+        assert_eq!(parse_seek_target("45s", 0.0, 200.0), Some(45.0));
+        assert_eq!(parse_seek_target("invalid", 0.0, 200.0), None);
+        assert_eq!(parse_seek_target("", 0.0, 200.0), None);
+    }
+
+    #[test]
+    fn seek_updates_active_playback_position() {
+        let mut app = make_app();
+        app.play_tracks(vec![track(1)], 0);
+        app.now_playing.active = true;
+        app.now_playing.duration = 200.0;
+
+        app.seek("1:15");
+        assert_eq!(app.now_playing.position, 75.0);
+    }
 }
+

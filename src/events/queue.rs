@@ -3,7 +3,7 @@
 
 //! Input for the queue panel.
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent};
 
 use super::*;
 use crate::app::App;
@@ -111,6 +111,7 @@ pub(super) fn handle_queue_input(app: &mut App, key: KeyEvent) {
 mod tests {
     use super::*;
     use crate::app::test_support::{test_app, track};
+    use crossterm::event::KeyModifiers;
 
     #[test]
     fn handle_queue_input_reorders_with_j_and_k() {

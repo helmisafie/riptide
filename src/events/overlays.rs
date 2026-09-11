@@ -124,6 +124,16 @@ pub(super) fn execute_command(app: &mut App, cmd: &str) {
         "autoplay:off" | "autoplay off" => {
             app.set_autoplay(false);
         }
+        "seek" => {
+            app.set_status(
+                "Usage: :seek <time|pct> (e.g. 1:30, 50%, +10)".to_string(),
+                crate::app::StatusLevel::Info,
+            );
+        }
+        c if c.starts_with("seek ") || c.starts_with("seek:") => {
+            let arg = c.strip_prefix("seek ").or_else(|| c.strip_prefix("seek:")).unwrap_or("");
+            app.seek(arg);
+        }
         _ => {}
     }
 }
@@ -306,4 +316,20 @@ mod tests {
         execute_command(&mut t.app, "autoplay:off");
         assert!(!t.app.autoplay);
     }
+
+    #[test]
+    fn execute_command_seeks_playback() {
+        use crate::app::test_support::track;
+        let mut t = test_app();
+        t.app.play_tracks(vec![track(1)], 0);
+        t.app.now_playing.active = true;
+        t.app.now_playing.duration = 180.0;
+
+        execute_command(&mut t.app, "seek 1:30");
+        assert_eq!(t.app.now_playing.position, 90.0);
+
+        execute_command(&mut t.app, "seek:50%");
+        assert_eq!(t.app.now_playing.position, 90.0);
+    }
 }
+

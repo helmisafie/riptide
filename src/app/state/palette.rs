@@ -5,22 +5,12 @@
 
 // ── Artist selection modal ────────────────────────────────────────────────────
 
+#[derive(Default)]
 pub struct ArtistSelection {
     pub active: bool,
     pub artist_names: Vec<String>,
     pub selected: usize,
     pub searching_for: Option<String>,
-}
-
-impl Default for ArtistSelection {
-    fn default() -> Self {
-        Self {
-            active: false,
-            artist_names: Vec::new(),
-            selected: 0,
-            searching_for: None,
-        }
-    }
 }
 
 // ── Command palette ───────────────────────────────────────────────────────────
@@ -53,6 +43,11 @@ impl CommandState {
         "visualizer:equalizer",
         "visualizer:progress-rail",
         "visualizer:waveform",
+        "clear",
+        "clear-upcoming",
+        "autoplay",
+        "autoplay:off",
+        "autoplay:on",
     ];
 
     pub fn matches(&self) -> Vec<&'static str> {

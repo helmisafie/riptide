@@ -109,6 +109,21 @@ pub(super) fn execute_command(app: &mut App, cmd: &str) {
         c if c.starts_with("visualizer:") || c.starts_with("visualizer ") => {
             app.set_visualizer_by_name(&c[11..]);
         }
+        "clear" | "clear-queue" => {
+            app.clear_queue();
+        }
+        "clear-upcoming" => {
+            app.clear_upcoming_queue();
+        }
+        "autoplay" => {
+            app.toggle_autoplay();
+        }
+        "autoplay:on" | "autoplay on" => {
+            app.set_autoplay(true);
+        }
+        "autoplay:off" | "autoplay off" => {
+            app.set_autoplay(false);
+        }
         _ => {}
     }
 }
@@ -261,5 +276,34 @@ mod tests {
         handle_command_input(&mut t.app, KeyEvent::from(KeyCode::Enter));
         assert_eq!(t.app.theme, ThemePreset::Gruvbox);
         assert!(!t.app.command.active);
+    }
+
+    #[test]
+    fn execute_command_clears_queue_and_upcoming() {
+        use crate::app::test_support::track;
+        let mut t = test_app();
+        t.app.play_tracks((1..=5).map(track).collect(), 1);
+
+        execute_command(&mut t.app, "clear-upcoming");
+        assert_eq!(t.app.now_playing.queue.len(), 2);
+
+        execute_command(&mut t.app, "clear");
+        assert!(t.app.now_playing.queue.is_empty());
+        assert!(t.app.now_playing.track.is_none());
+    }
+
+    #[test]
+    fn execute_command_toggles_and_sets_autoplay() {
+        let mut t = test_app();
+        t.app.autoplay = true;
+
+        execute_command(&mut t.app, "autoplay");
+        assert!(!t.app.autoplay);
+
+        execute_command(&mut t.app, "autoplay:on");
+        assert!(t.app.autoplay);
+
+        execute_command(&mut t.app, "autoplay:off");
+        assert!(!t.app.autoplay);
     }
 }

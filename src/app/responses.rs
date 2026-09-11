@@ -707,6 +707,36 @@ impl App {
                 }
             }
 
+            ApiResponse::AutoplayTracks { tracks } => {
+                if !self.autoplay {
+                    return;
+                }
+                let existing_ids: std::collections::HashSet<u64> =
+                    self.now_playing.queue.iter().map(|t| t.id).collect();
+                let new_tracks: Vec<Track> = tracks
+                    .into_iter()
+                    .filter(|t| !existing_ids.contains(&t.id))
+                    .collect();
+                if new_tracks.is_empty() {
+                    return;
+                }
+                let count = new_tracks.len();
+                let old_len = self.now_playing.queue.len();
+                let had_no_next = self.now_playing.queue_index + 1 >= old_len;
+                let was_stopped = !self.now_playing.active;
+                if self.now_playing.shuffle {
+                    self.now_playing.original_queue.extend(new_tracks.clone());
+                }
+                self.now_playing.queue.extend(new_tracks);
+                if was_stopped {
+                    self.play_from_queue(old_len);
+                } else if had_no_next {
+                    self.replace_prefetched_next();
+                }
+                self.set_status(format!("Autoplay: queued {count} similar tracks"), StatusLevel::Info);
+                self.push_mpris_state();
+            }
+
             ApiResponse::SearchedArtists(artists) => {
                 if let Some(search_query) = self.artist_selection.searching_for.take() {
                     let exact_match: Option<Artist> = artists
@@ -899,10 +929,12 @@ impl App {
                         });
                     }
                     self.fetch_now_playing_metadata();
+                    self.check_autoplay();
                 } else {
                     self.now_playing.active = false;
                     self.now_playing.next_prefetched = None;
                     self.now_playing.mpv_exhausted = true;
+                    self.check_autoplay();
                 }
                 self.now_playing.position = 0.0;
                 self.push_mpris_state();
@@ -1189,5 +1221,27 @@ mod tests {
 
         assert!(!t.app.now_playing.presentation_art_loading());
         assert!(t.app.now_playing.presentation_art_bytes().is_none());
+    }
+
+    #[test]
+    fn autoplay_tracks_appends_and_resolves_next() {
+        use crate::app::test_support::track as make_track;
+        let mut t = test_app();
+        t.app.autoplay = true;
+        t.app.play_tracks(vec![make_track(1)], 0);
+
+        while t.api_rx.try_recv().is_ok() {}
+
+        let radio_tracks = vec![make_track(1), make_track(2), make_track(3)];
+        t.app.handle_api_response(ApiResponse::AutoplayTracks { tracks: radio_tracks });
+
+        assert_eq!(t.app.now_playing.queue.len(), 3);
+        assert_eq!(t.app.now_playing.queue[1].id, 2);
+        assert_eq!(t.app.now_playing.queue[2].id, 3);
+
+        assert!(matches!(
+            t.api_rx.try_recv(),
+            Ok(ApiRequest::ResolveStreamUrl { track_id: 2 })
+        ));
     }
 }

@@ -167,6 +167,9 @@ pub(super) fn render_now_playing(f: &mut Frame, app: &App, area: Rect) {
     if app.now_playing.shuffle {
         badge_spans.push(Span::styled("⇄ SHUF ", Style::default().fg(accent())));
     }
+    if app.autoplay {
+        badge_spans.push(Span::styled("∞ AUTO ", Style::default().fg(accent())));
+    }
     let vis_badge = match app.visualizer {
         crate::app::VisualizerStyle::Waveform => "[WAVE]",
         crate::app::VisualizerStyle::Equalizer => "[EQ]",

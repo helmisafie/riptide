@@ -93,6 +93,8 @@ pub struct App {
 
     pub theme: ThemePreset,
     pub visualizer: VisualizerStyle,
+    pub autoplay: bool,
+    pub autoplay_requested_for: Option<u64>,
 
     /// Most recent library removal, restorable with `u` until the next one.
     pub last_removal: Option<Removal>,
@@ -206,6 +208,8 @@ impl App {
             queue_viewport: ListViewport::default(),
             theme: prefs.theme,
             visualizer: prefs.visualizer,
+            autoplay: prefs.autoplay,
+            autoplay_requested_for: None,
             last_removal: None,
             help_active: false,
             help_scroll: 0,
@@ -258,6 +262,40 @@ impl App {
             queue_visible: self.queue_visible,
             theme: self.theme,
             visualizer: self.visualizer,
+            autoplay: self.autoplay,
+        }
+    }
+
+    pub fn toggle_autoplay(&mut self) {
+        self.set_autoplay(!self.autoplay);
+    }
+
+    pub fn set_autoplay(&mut self, enabled: bool) {
+        self.autoplay = enabled;
+        self.set_status(
+            format!("Autoplay {}", if self.autoplay { "on" } else { "off" }),
+            StatusLevel::Info,
+        );
+        if self.autoplay {
+            self.check_autoplay();
+        }
+    }
+
+    pub fn check_autoplay(&mut self) {
+        if !self.autoplay {
+            return;
+        }
+        let qi = self.now_playing.queue_index;
+        if self.now_playing.queue.len() <= qi + 1 {
+            if let Some(track) = self.now_playing.queue.get(qi) {
+                let track_id = track.id;
+                if self.autoplay_requested_for == Some(track_id) {
+                    return;
+                }
+                self.autoplay_requested_for = Some(track_id);
+                tracing::debug!("Autoplay: requesting radio for track {track_id}");
+                let _ = self.api_tx.send(ApiRequest::AutoplayRadio { track_id });
+            }
         }
     }
 
@@ -339,6 +377,12 @@ impl App {
         self.queue_cursor = self
             .queue_viewport
             .next_page(self.queue_cursor, self.now_playing.queue.len());
+    }
+
+    pub fn jump_queue_to_playing(&mut self) {
+        if !self.now_playing.queue.is_empty() {
+            self.queue_cursor = self.now_playing.queue_index.min(self.now_playing.queue.len() - 1);
+        }
     }
 
     /// Time since the last keypress, driving the marquee on the selected row.

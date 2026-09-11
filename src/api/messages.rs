@@ -117,6 +117,9 @@ pub enum ApiRequest {
     TrackRadio {
         track_id: u64,
     },
+    AutoplayRadio {
+        track_id: u64,
+    },
     ArtistRadio {
         artist_id: u64,
     },
@@ -251,6 +254,9 @@ pub enum ApiResponse {
         uuid: String,
     },
     RadioTracks {
+        tracks: Vec<Track>,
+    },
+    AutoplayTracks {
         tracks: Vec<Track>,
     },
     SearchedArtists(Vec<Artist>),

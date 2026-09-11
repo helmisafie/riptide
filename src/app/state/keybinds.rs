@@ -273,8 +273,28 @@ impl KeybindGroup {
                     action: "Down",
                 },
                 Keybind {
-                    key: "d",
+                    key: "K or J",
+                    action: "Move track up / down (or Alt+↑/↓)",
+                },
+                Keybind {
+                    key: "P",
+                    action: "Play next",
+                },
+                Keybind {
+                    key: "d or x",
                     action: "Remove track",
+                },
+                Keybind {
+                    key: "D or X",
+                    action: "Clear upcoming tracks",
+                },
+                Keybind {
+                    key: ". or o",
+                    action: "Jump to playing",
+                },
+                Keybind {
+                    key: "Home/End",
+                    action: "Jump to first / last",
                 },
                 Keybind {
                     key: "g",
@@ -287,10 +307,6 @@ impl KeybindGroup {
                 Keybind {
                     key: "r",
                     action: "Start track radio",
-                },
-                Keybind {
-                    key: "P",
-                    action: "Play next",
                 },
                 Keybind {
                     key: "c",

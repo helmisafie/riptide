@@ -141,18 +141,20 @@ pub struct Preferences {
     pub volume: u8,
     #[serde(default)]
     pub shuffle: bool,
-    #[serde(default = "default_queue_visible")]
+    #[serde(default = "default_true")]
     pub queue_visible: bool,
     #[serde(default)]
     pub theme: ThemePreset,
     #[serde(default)]
     pub visualizer: VisualizerStyle,
+    #[serde(default = "default_true")]
+    pub autoplay: bool,
 }
 
 fn default_volume() -> u8 {
     100
 }
-fn default_queue_visible() -> bool {
+fn default_true() -> bool {
     true
 }
 
@@ -165,9 +167,10 @@ impl Default for Preferences {
             playlists_sort: None,
             volume: default_volume(),
             shuffle: false,
-            queue_visible: default_queue_visible(),
+            queue_visible: default_true(),
             theme: ThemePreset::default(),
             visualizer: VisualizerStyle::default(),
+            autoplay: default_true(),
         }
     }
 }
@@ -228,6 +231,7 @@ mod tests {
         assert!(prefs.shuffle);
         assert_eq!(prefs.theme, ThemePreset::Tidal);
         assert_eq!(prefs.visualizer, VisualizerStyle::Waveform);
+        assert!(prefs.autoplay);
     }
 
     #[test]
@@ -235,11 +239,13 @@ mod tests {
         let prefs = Preferences {
             theme: ThemePreset::Catppuccin,
             visualizer: VisualizerStyle::Equalizer,
+            autoplay: false,
             ..Default::default()
         };
         let serialized = serde_json::to_string(&prefs).unwrap();
         let deserialized: Preferences = serde_json::from_str(&serialized).unwrap();
         assert_eq!(deserialized.theme, ThemePreset::Catppuccin);
         assert_eq!(deserialized.visualizer, VisualizerStyle::Equalizer);
+        assert!(!deserialized.autoplay);
     }
 }

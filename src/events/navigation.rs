@@ -512,8 +512,8 @@ pub(super) fn handle_navigation(app: &mut App, key: KeyEvent) {
             Tab::Search => match app.search.pane {
                 SearchPane::Tracks => {
                     let idx = app.search.track_sel;
-                    if let Some(track) = app.search.tracks.get(idx).cloned() {
-                        app.play_track(track);
+                    if idx < app.search.tracks.len() {
+                        app.play_tracks(app.search.tracks.clone(), idx);
                     }
                 }
                 SearchPane::Artists => {
@@ -821,4 +821,25 @@ pub(super) fn get_selected_track(app: &App) -> Option<crate::api::models::Track>
         return Some(app.now_playing.queue[app.now_playing.queue_index].clone());
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::test_support::{test_app, track};
+
+    #[test]
+    fn enter_on_search_track_queues_all_results_from_selected() {
+        let mut t = test_app();
+        t.app.current_tab = Tab::Search;
+        t.app.search.pane = SearchPane::Tracks;
+        t.app.search.tracks = (1..=5).map(track).collect();
+        t.app.search.track_sel = 2;
+
+        handle_navigation(&mut t.app, KeyEvent::from(KeyCode::Enter));
+
+        assert_eq!(t.app.now_playing.queue.len(), 5);
+        assert_eq!(t.app.now_playing.queue_index, 2);
+        assert_eq!(t.app.now_playing.queue[2].id, 3);
+    }
 }

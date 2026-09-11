@@ -363,6 +363,11 @@ async fn handle_request(client: Arc<ApiClient>, req: ApiRequest) -> ApiResponse 
             Err(e) => ApiResponse::Error(format!("radio: {e}")),
         },
 
+        ApiRequest::AutoplayRadio { track_id } => match client.get_track_radio(track_id).await {
+            Ok((page, _)) => ApiResponse::AutoplayTracks { tracks: page.items },
+            Err(e) => ApiResponse::Error(format!("autoplay radio: {e}")),
+        },
+
         ApiRequest::ArtistRadio { artist_id } => match client.get_artist_radio(artist_id).await {
             Ok((page, _)) => ApiResponse::RadioTracks { tracks: page.items },
             Err(e) => ApiResponse::Error(format!("radio: {e}")),

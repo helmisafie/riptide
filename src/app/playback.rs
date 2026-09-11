@@ -56,6 +56,8 @@ impl App {
                 .api_tx
                 .send(ApiRequest::ResolveStreamUrl { track_id: id });
         }
+        self.autoplay_requested_for = None;
+        self.check_autoplay();
     }
 
     /// Like `play_tracks`, but records the source playlist UUID so that pages that
@@ -187,7 +189,7 @@ impl App {
 
     pub fn move_queue_track_up(&mut self) {
         let idx = self.queue_cursor;
-        if idx == 0 {
+        if idx == 0 || idx >= self.now_playing.queue.len() {
             return;
         }
         let qi = self.now_playing.queue_index;
@@ -243,15 +245,20 @@ impl App {
 
     pub fn move_queue_track_to_play_next(&mut self, cursor: usize) {
         let qi = self.now_playing.queue_index;
-        if cursor > qi + 1 && cursor < self.now_playing.queue.len() {
-            let track = self.now_playing.queue.remove(cursor);
-            let title = track.title.clone();
-            self.now_playing.queue.insert(qi + 1, track);
-            self.replace_prefetched_next();
-            self.queue_cursor = qi + 1;
-            self.set_status(format!("Playing next: {title}"), StatusLevel::Info);
-            self.push_mpris_state();
+        if cursor >= self.now_playing.queue.len() || cursor == qi || cursor == qi + 1 {
+            return;
         }
+        let track = self.now_playing.queue.remove(cursor);
+        let title = track.title.clone();
+        if cursor < qi {
+            self.now_playing.queue_index -= 1;
+        }
+        let insert_idx = self.now_playing.queue_index + 1;
+        self.now_playing.queue.insert(insert_idx, track);
+        self.replace_prefetched_next();
+        self.queue_cursor = insert_idx;
+        self.set_status(format!("Playing next: {title}"), StatusLevel::Info);
+        self.push_mpris_state();
     }
 
     pub fn add_to_queue(&mut self, track: Track) {
@@ -324,6 +331,7 @@ impl App {
         self.fetch_now_playing_metadata();
         self.push_mpris_state();
         self.queue_focused = false;
+        self.check_autoplay();
     }
 
     pub fn remove_from_queue(&mut self, idx: usize) {
@@ -331,6 +339,7 @@ impl App {
             return;
         }
         let qi = self.now_playing.queue_index;
+        let title = self.now_playing.queue[idx].title.clone();
 
         // Drop it from the pre-shuffle order too, or turning shuffle off would
         // bring it back.
@@ -350,6 +359,7 @@ impl App {
                 let _ = self.player_tx.send(PlayerCmd::Stop);
                 self.push_mpris_state();
                 self.queue_focused = false;
+                self.set_status("Queue empty".to_string(), StatusLevel::Info);
                 return;
             }
             let new_idx = idx.min(self.now_playing.queue.len() - 1);
@@ -378,6 +388,57 @@ impl App {
         if self.now_playing.queue.is_empty() {
             self.queue_focused = false;
         }
+        self.set_status(format!("Removed from queue: {title}"), StatusLevel::Info);
+        self.push_mpris_state();
+    }
+
+    pub fn clear_upcoming_queue(&mut self) {
+        let qi = self.now_playing.queue_index;
+        if self.now_playing.queue.len() <= qi + 1 {
+            self.set_status("No upcoming tracks to clear".to_string(), StatusLevel::Info);
+            return;
+        }
+        let count = self.now_playing.queue.len() - (qi + 1);
+        self.now_playing.queue.truncate(qi + 1);
+        if self.now_playing.shuffle {
+            let keep_ids: std::collections::HashSet<u64> =
+                self.now_playing.queue.iter().map(|t| t.id).collect();
+            self.now_playing
+                .original_queue
+                .retain(|t| keep_ids.contains(&t.id));
+        }
+        let _ = self.player_tx.send(PlayerCmd::ClearNext);
+        self.now_playing.next_prefetched = None;
+        if self.queue_cursor >= self.now_playing.queue.len() {
+            self.queue_cursor = self.now_playing.queue.len().saturating_sub(1);
+        }
+        self.set_status(
+            format!(
+                "Cleared {count} upcoming {}",
+                if count == 1 { "track" } else { "tracks" }
+            ),
+            StatusLevel::Info,
+        );
+        self.push_mpris_state();
+    }
+
+    pub fn clear_queue(&mut self) {
+        if self.now_playing.queue.is_empty() {
+            return;
+        }
+        self.now_playing.queue.clear();
+        self.now_playing.original_queue.clear();
+        self.now_playing.track = None;
+        self.now_playing.active = false;
+        self.now_playing.queue_index = 0;
+        self.now_playing.position = 0.0;
+        self.now_playing.next_prefetched = None;
+        self.now_playing.play_pending = None;
+        let _ = self.player_tx.send(PlayerCmd::Stop);
+        let _ = self.player_tx.send(PlayerCmd::ClearNext);
+        self.queue_cursor = 0;
+        self.queue_focused = false;
+        self.set_status("Queue cleared".to_string(), StatusLevel::Info);
         self.push_mpris_state();
     }
 
@@ -1346,6 +1407,87 @@ mod tests {
         assert_eq!(app.now_playing.queue[0].id, next_id);
         assert_eq!(app.now_playing.queue_index, 0);
         assert_eq!(app.now_playing.queue.len(), 2);
+    }
+
+    #[test]
+    fn move_queue_track_to_play_next_from_before_current() {
+        let (mut app, mut api_rx) = make_app_watching_api();
+        app.play_tracks((1..=5).map(track).collect(), 2); // playing track 3 at index 2
+        app.focus_queue();
+        let _ = resolved_track_ids(&mut api_rx);
+
+        // Move track 1 (index 0) to play next after track 3.
+        app.move_queue_track_to_play_next(0);
+
+        // Track 3 was at index 2; after removing index 0 it became index 1.
+        // Track 1 is inserted at index 2 (immediately after track 3).
+        assert_eq!(app.now_playing.queue_index, 1);
+        assert_eq!(app.now_playing.queue[1].id, 3);
+        assert_eq!(app.now_playing.queue[2].id, 1);
+        assert_eq!(app.queue_cursor, 2);
+    }
+
+    #[test]
+    fn clear_upcoming_queue_clears_tracks_and_prefetch() {
+        let (mut app, _api_rx, mut player_rx) = make_app_watching_all();
+        app.play_tracks((1..=5).map(track).collect(), 1); // playing track 2 at index 1
+        app.focus_queue();
+        app.queue_cursor = 3;
+
+        drain(&mut player_rx);
+        app.clear_upcoming_queue();
+
+        assert_eq!(app.now_playing.queue.len(), 2);
+        assert_eq!(app.now_playing.queue[0].id, 1);
+        assert_eq!(app.now_playing.queue[1].id, 2);
+        assert_eq!(app.queue_cursor, 1);
+        assert!(app.now_playing.next_prefetched.is_none());
+        assert!(matches!(player_rx.try_recv(), Ok(PlayerCmd::ClearNext)));
+    }
+
+    #[test]
+    fn clear_queue_stops_playback_and_empties_state() {
+        let (mut app, _api_rx, mut player_rx) = make_app_watching_all();
+        app.play_tracks((1..=3).map(track).collect(), 0);
+        app.focus_queue();
+
+        drain(&mut player_rx);
+        app.clear_queue();
+
+        assert!(app.now_playing.queue.is_empty());
+        assert!(app.now_playing.track.is_none());
+        assert!(!app.queue_focused);
+        assert!(matches!(player_rx.try_recv(), Ok(PlayerCmd::Stop)));
+    }
+
+    #[test]
+    fn autoplay_triggers_radio_when_queue_low() {
+        let (mut app, mut api_rx, _player_rx) = make_app_watching_all();
+        app.autoplay = true;
+
+        app.play_tracks(vec![track(42)], 0);
+
+        let mut requests = Vec::new();
+        while let Ok(req) = api_rx.try_recv() {
+            requests.push(req);
+        }
+
+        assert!(requests.iter().any(|r| matches!(r, ApiRequest::AutoplayRadio { track_id: 42 })));
+    }
+
+    #[test]
+    fn autoplay_does_not_trigger_when_queue_has_upcoming() {
+        let (mut app, mut api_rx, _player_rx) = make_app_watching_all();
+        app.autoplay = true;
+
+        app.play_tracks((1..=5).map(track).collect(), 0);
+
+        let mut requests = Vec::new();
+        while let Ok(req) = api_rx.try_recv() {
+            requests.push(req);
+        }
+
+        assert!(!requests.iter().any(|r| matches!(r, ApiRequest::AutoplayRadio { .. })));
     }
 
     // ── MPRIS control ─────────────────────────────────────────────────────────
